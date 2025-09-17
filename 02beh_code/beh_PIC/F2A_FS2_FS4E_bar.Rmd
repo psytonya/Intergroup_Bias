@@ -1,0 +1,390 @@
+---
+title: "bar"
+author: "lzt"
+date: "2025-06-28"
+output: html_document
+---
+#0.ready
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load package}
+#source("function_rainclouds.R")
+source("function_summarySE.R")
+library(ggplot2)
+library(gghalves)
+library(cowplot)
+library(readr)
+library(dplyr)
+```
+
+#1.load data
+```{r load data}
+
+membership_inter_split <- read.csv("./bardata.csv")
+
+# 添加因子化的membership和emo列
+membership_inter_split$membership <-
+  ifelse(membership_inter_split$membership == 1, "in-group", "out-group")
+membership_inter_split$split <-
+  ifelse(membership_inter_split$split == 1, "fair", "unfair")
+
+# 将新添加的列转化为因子型
+membership_inter_split$membership <-
+  as.factor(membership_inter_split$membership)
+membership_inter_split$split<-
+  as.factor(membership_inter_split$split)
+```
+
+#2.amount_bar_F2A
+```{r amount_bar_F2A}
+sumrepdat <-
+  summarySE(
+    membership_inter_split,
+    measurevar = "amounts",
+    groupvars = c("membership","split")
+  )
+
+## 图形参数设置（保持不变）
+w = 6
+h = 6
+
+## 自定义因子顺序 - 修改为unfair在前，fair在后
+custom_order <- c("unfair", "fair")
+membership_inter_split$split <- factor(membership_inter_split$split, levels = custom_order)
+custom_order1 <- c("unfair", "fair")
+sumrepdat$split <- factor(sumrepdat$split, levels = custom_order1) 
+
+# 定义dodge宽度，确保柱状图和误差线对齐
+dodge_width <- 0.6
+
+# 核心绘图部分
+ggplot(membership_inter_split,
+       aes(
+         x = split,
+         y = amounts,
+         fill = membership,
+         colour = membership,
+         shape = membership
+       )) +
+  ### 绘制条形柱状图 - 移除黑色框线
+  geom_col(
+    data = sumrepdat,
+    aes(x = split, y = amounts_mean, fill = membership),
+    position = position_dodge(width = dodge_width),  # 使用统一的dodge宽度
+    width = 0.5,  # 柱状图宽度
+    alpha = 0.7,  # 透明度
+    colour = NA,  # 移除边框（原为"black"）
+    size = 0.3    # 边框粗细（已无效，因无边框）
+  ) +
+  ### 绘制散点图（优化位置映射）
+  geom_point(
+    data = membership_inter_split,
+    position = position_jitterdodge(
+      jitter.width = 0.1,  # 散点横向抖动范围
+      dodge.width = dodge_width  # 使用相同的dodge宽度
+    ),
+    size = 0.8,
+    stroke = 0.8
+  ) +
+  ### 绘制误差线图 - 设置为黑色
+  geom_errorbar(
+    data = sumrepdat,
+    aes(
+      x = split,
+      y = amounts_mean,
+      ymin = amounts_mean - sem,
+      ymax = amounts_mean + sem
+    ),
+    position = position_dodge(width = dodge_width),  # 使用相同的dodge宽度
+    width = 0.15,  # 误差线横向宽度
+    size = 0.5,   # 误差线粗细
+    colour = "black"  # 设置误差线为黑色
+  ) +
+  ### 坐标轴与主题设置（保持原有风格）
+  xlab(NULL) +  
+  ylab("amounts of punishment") +   
+  scale_y_continuous(expand = c(0,0), breaks = c(0,2,4,6), limits = c(0,6))+
+  scale_x_discrete(limits = custom_order) +
+  
+  theme(
+    axis.ticks = element_line(size = 0.4, color = "black"),
+    axis.title.y = element_text(size = 30, vjust = 0.5, hjust = 0.5, face = "bold", family = "serif"),
+    axis.title.x = element_text(size = 30, vjust = 0.5, hjust = 0.5, face = "bold", family = "serif"),
+    axis.text.x = element_text(size = 30, face = "bold", family = "serif"),
+    axis.text.y = element_text(size = 30, face = "bold", family = "serif"),
+    axis.line = element_line(colour = "black"),
+    legend.title = element_text(size = 24, face = "bold", family = "serif"),
+    legend.text = element_text(size = 24, family = "serif", face = "bold"),
+    legend.position = c(0.94, 0.95),
+    #legend.direction = "horizontal",
+    #legend.box = "horizontal",
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    panel.border = element_blank(),
+    plot.background = element_blank(),
+    plot.margin = unit(c(2.5, 0.5, 0.5, 0.5), "cm")
+  ) +
+  
+  ### 颜色与形状映射（保持原有配置）
+  scale_fill_manual(
+    values = c("in-group" = "#48C0AA", "out-group" = '#456990'),
+    name = NULL,
+    labels = c("inG", "outG")
+  ) +
+  scale_color_manual(
+    values = c("in-group" = "#48C0AA", "out-group" = '#456990'),
+    name = NULL,
+    labels = c("inG", "outG")
+  ) +
+  scale_shape_manual(
+    values = c("in-group" = 19, "out-group" = 19),
+    name = NULL,
+    labels = c("inG", "outG")
+  )
+
+## 保存图表（保持原有设置）
+ggsave('./fig2A_amounts_bar.png', 
+       width = w, 
+       height = h, 
+       device = "png",   
+       dpi = 300)
+```
+
+
+#3.RT_bar_FS2
+```{r RT_bar_FS2}
+sumrepdat <-
+  summarySE(
+    membership_inter_split,
+    measurevar = "RT",
+    groupvars = c("membership","split")
+  )
+
+## 图形参数设置（保持不变）
+w = 6
+h = 6
+
+## 自定义因子顺序 - 修改为unfair在前，fair在后
+custom_order <- c("unfair", "fair")
+membership_inter_split$split <- factor(membership_inter_split$split, levels = custom_order)
+custom_order1 <- c("unfair", "fair")
+sumrepdat$split <- factor(sumrepdat$split, levels = custom_order1) 
+
+# 定义dodge宽度，确保柱状图和误差线对齐
+dodge_width <- 0.6
+
+# 核心绘图部分
+ggplot(membership_inter_split,
+       aes(
+         x = split,
+         y = RT,
+         fill = membership,
+         colour = membership,
+         shape = membership
+       )) +
+  ### 绘制条形柱状图 - 移除黑色框线
+  geom_col(
+    data = sumrepdat,
+    aes(x = split, y = RT_mean, fill = membership),
+    position = position_dodge(width = dodge_width),  # 使用统一的dodge宽度
+    width = 0.5,  # 柱状图宽度
+    alpha = 0.7,  # 透明度
+    colour = NA,  # 移除边框（原为"black"）
+    size = 0.3    # 边框粗细（已无效，因无边框）
+  ) +
+  ### 绘制散点图（优化位置映射）
+  geom_point(
+    data = membership_inter_split,
+    position = position_jitterdodge(
+      jitter.width = 0.1,  # 散点横向抖动范围
+      dodge.width = dodge_width  # 使用相同的dodge宽度
+    ),
+    size = 0.8,
+    stroke = 0.8
+  ) +
+  ### 绘制误差线图 - 设置为黑色
+  geom_errorbar(
+    data = sumrepdat,
+    aes(
+      x = split,
+      y = RT_mean,
+      ymin = RT_mean - sem,
+      ymax = RT_mean + sem
+    ),
+    position = position_dodge(width = dodge_width),  # 使用相同的dodge宽度
+    width = 0.15,  # 误差线横向宽度
+    size = 0.5,   # 误差线粗细
+    colour = "black"  # 设置误差线为黑色
+  ) +
+  ### 坐标轴与主题设置（保持原有风格）
+  xlab(NULL) +  
+  ylab("Response Time") +   
+  scale_y_continuous(expand = c(0,0), breaks = c(0,1,2,3,4), limits = c(0,4))+
+  scale_x_discrete(limits = custom_order) +
+  
+  theme(
+    axis.ticks = element_line(size = 0.4, color = "black"),
+    axis.title.y = element_text(size = 24, vjust = 0.5, hjust = 0.5, face = "bold", family = "serif"),
+    axis.title.x = element_text(size = 24, vjust = 0.5, hjust = 0.5, face = "bold", family = "serif"),
+    axis.text.x = element_text(size = 24, face = "bold", family = "serif"),
+    axis.text.y = element_text(size = 24, face = "bold", family = "serif"),
+    axis.line = element_line(colour = "black"),
+    legend.title = element_text(size = 22, face = "bold", family = "serif"),
+    legend.text = element_text(size = 22, family = "serif", face = "bold"),
+    legend.position = c(0.94, 0.95),
+    #legend.direction = "horizontal",
+    #legend.box = "horizontal",
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    panel.border = element_blank(),
+    plot.background = element_blank(),
+    plot.margin = unit(c(2.5, 0.5, 0.5, 0.5), "cm")
+  ) +
+  
+  ### 颜色与形状映射（保持原有配置）
+  scale_fill_manual(
+    values = c("in-group" = "#48C0AA", "out-group" = '#456990'),
+    name = NULL,
+    labels = c("inG", "outG")
+  ) +
+  scale_color_manual(
+    values = c("in-group" = "#48C0AA", "out-group" = '#456990'),
+    name = NULL,
+    labels = c("inG", "outG")
+  ) +
+  scale_shape_manual(
+    values = c("in-group" = 19, "out-group" = 19),
+    name = NULL,
+    labels = c("inG", "outG")
+  )
+
+## 保存图表（保持原有设置）
+ggsave('./FS2_RT_bar.png', 
+       width = w, 
+       height = h, 
+       device = "png",   
+       dpi = 300)
+```
+
+#4.simdataamount_bar_FS4E
+```{r simdataamount_bar_FS4E}
+sumrepdat <-
+  summarySE(
+    membership_inter_split,
+    measurevar = "sim_amounts",
+    groupvars = c("membership","split")
+  )
+
+## 图形参数设置（保持不变）
+w = 6
+h = 6
+
+## 自定义因子顺序 - 修改为unfair在前，fair在后
+custom_order <- c("unfair", "fair")
+membership_inter_split$split <- factor(membership_inter_split$split, levels = custom_order)
+custom_order1 <- c("unfair", "fair")
+sumrepdat$split <- factor(sumrepdat$split, levels = custom_order1) 
+
+# 定义dodge宽度，确保柱状图和误差线对齐
+dodge_width <- 0.6
+
+# 核心绘图部分
+ggplot(membership_inter_split,
+       aes(
+         x = split,
+         y = sim_amounts,
+         fill = membership,
+         colour = membership,
+         shape = membership
+       )) +
+  ### 绘制条形柱状图 - 移除黑色框线
+  geom_col(
+    data = sumrepdat,
+    aes(x = split, y = sim_amounts_mean, fill = membership),
+    position = position_dodge(width = dodge_width),  # 使用统一的dodge宽度
+    width = 0.5,  # 柱状图宽度
+    alpha = 0.7,  # 透明度
+    colour = NA,  # 移除边框（原为"black"）
+    size = 0.3    # 边框粗细（已无效，因无边框）
+  ) +
+  ### 绘制散点图（优化位置映射）
+  geom_point(
+    data = membership_inter_split,
+    position = position_jitterdodge(
+      jitter.width = 0.1,  # 散点横向抖动范围
+      dodge.width = dodge_width  # 使用相同的dodge宽度
+    ),
+    size = 0.8,
+    stroke = 0.8
+  ) +
+  ### 绘制误差线图 - 设置为黑色
+  geom_errorbar(
+    data = sumrepdat,
+    aes(
+      x = split,
+      y = sim_amounts_mean,
+      ymin = sim_amounts_mean - sem,
+      ymax = sim_amounts_mean + sem
+    ),
+    position = position_dodge(width = dodge_width),  # 使用相同的dodge宽度
+    width = 0.15,  # 误差线横向宽度
+    size = 0.5,   # 误差线粗细
+    colour = "black"  # 设置误差线为黑色
+  ) +
+  ### 坐标轴与主题设置（保持原有风格）
+  xlab(NULL) +  
+  ylab("sim_amounts of punishment") +   
+  scale_y_continuous(expand = c(0,0), breaks = c(0,2,4,6), limits = c(0,6))+
+  scale_x_discrete(limits = custom_order) +
+  
+  theme(
+    axis.ticks = element_line(size = 0.4, color = "black"),
+    axis.title.y = element_text(size = 18, vjust = 0.5, hjust = 0.5, face = "bold", family = "serif"),
+    axis.title.x = element_text(size = 18, vjust = 0.5, hjust = 0.5, face = "bold", family = "serif"),
+    axis.text.x = element_text(size = 18, face = "bold", family = "serif"),
+    axis.text.y = element_text(size = 18, face = "bold", family = "serif"),
+    axis.line = element_line(colour = "black"),
+    legend.title = element_text(size = 18, face = "bold", family = "serif"),
+    legend.text = element_text(size = 18, family = "serif", face = "bold"),
+    legend.position = c(0.95, 0.95),
+    #legend.direction = "horizontal",
+    #legend.box = "horizontal",
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    panel.border = element_blank(),
+    plot.background = element_blank(),
+    plot.margin = unit(c(2.5, 0.5, 0.5, 0.5), "cm")
+  ) +
+  
+  ### 颜色与形状映射（保持原有配置）
+  scale_fill_manual(
+    values = c("in-group" = "#48C0AA", "out-group" = '#456990'),
+    name = NULL,
+    labels = c("inG", "outG")
+  ) +
+  scale_color_manual(
+    values = c("in-group" = "#48C0AA", "out-group" = '#456990'),
+    name = NULL,
+    labels = c("inG", "outG")
+  ) +
+  scale_shape_manual(
+    values = c("in-group" = 19, "out-group" = 19),
+    name = NULL,
+    labels = c("inG", "outG")
+  )
+
+## 保存图表（保持原有设置）
+ggsave('./FS4_Esim_amounts_bar.png', 
+       width = w, 
+       height = h, 
+       device = "png",   
+       dpi = 300)
+```

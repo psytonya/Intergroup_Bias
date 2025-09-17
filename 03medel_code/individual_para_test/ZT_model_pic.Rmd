@@ -1,0 +1,153 @@
+---
+title: "model"
+author: "lzt"
+date: "2025-06-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load package}
+#source("function_rainclouds.R")
+source("function_summarySE.R")
+library(ggplot2)
+library(gghalves)
+library(cowplot)
+library(readr)
+library(dplyr)
+```
+
+
+```{r paired t}
+library(ggplot2)
+library(dplyr)
+# 若未加载Hmisc包，需先运行：library(Hmisc)
+
+# 数据准备
+membership_inter_split <- read.csv("./individual_para.csv")
+
+# 添加因子化的membership和emo列
+membership_inter_split$membership <-
+  ifelse(membership_inter_split$membership == 1, "in-group", "out-group")
+
+# 修改split列映射（新增对0、1、2的映射）
+membership_inter_split$split <-
+  dplyr::case_when(
+    membership_inter_split$split == 1 ~ "alpha",
+    membership_inter_split$split == 2 ~ "theta",
+    membership_inter_split$split == 3 ~ "beta",
+    TRUE ~ as.character(membership_inter_split$split)  # 处理其他可能的值
+  )
+
+# 将新添加的列转化为因子型（使用之前定义的custom_order）
+custom_order <- c("alpha", "theta", "beta")
+membership_inter_split$membership <- as.factor(membership_inter_split$membership)
+membership_inter_split$split <- factor(membership_inter_split$split, levels = custom_order)
+
+
+sumrepdat <- summarySE(
+  membership_inter_split,
+  measurevar = "para",
+  groupvars = c("membership", "split")
+)
+
+# 设置自定义顺序（新增"nofair"）
+custom_order <- c("alpha", "theta", "beta")
+membership_inter_split$split <- factor(membership_inter_split$split, levels = custom_order)
+sumrepdat$split <- factor(sumrepdat$split, levels = custom_order)
+
+# 设置绘图参数
+w <- 18  # 增加宽度以适应三组数据
+h <- 6
+
+# 创建颜色映射
+color_palette <- c("in-group" = "#48C0AA", "out-group" = "#456990")
+para_plot <- ggplot(membership_inter_split, aes(x = split, y = para, fill = membership)) +
+  # 小提琴图
+  geom_violin(
+    aes(color = membership),
+    position = position_dodge(width = 0.8),
+    alpha = 0.3,
+    width = 1.2,
+    trim = FALSE,
+    size = 0.5
+  ) +
+  
+  # 新增散点图（每个被试的点）
+  geom_point(
+    aes(color = membership),
+    position = position_jitterdodge(
+      dodge.width = 0.8,  # 与 violin 对齐
+      jitter.width = 0.6  # 横向抖动，避免点完全重叠
+    ),
+    size = 2,
+    color = "#9E9E9E", 
+    alpha = 1
+  ) +
+  
+  # 均值点
+  geom_point(
+    data = sumrepdat,
+    aes(x = split, y = para_mean, group = membership, color = membership),
+    position = position_dodge(width = 0.8),
+    shape = 19,
+    size = 3
+  ) +
+  
+  # 误差线
+  geom_errorbar(
+    data = sumrepdat,
+    aes(
+      x = split, 
+      y = para_mean, 
+      group = membership, 
+      color = membership,
+      ymin = para_mean - sem,
+      ymax = para_mean + sem
+    ),
+    position = position_dodge(width = 0.8),
+    width = 0.2,
+    size = 0.8
+  ) +
+  
+  # 其余部分保持不变
+  labs(x = 'split', y = "Parameter estimates") +
+  scale_y_continuous(
+    expand = c(0, 0), 
+    breaks = c(-2, 0, 2, 4, 6), 
+    limits = c(-2, 6)
+  ) +
+  scale_x_discrete(
+    #labels = c("alpha" = "aversion to disadvantageous inequity", "theta" = "concerns for relative advantage", "beta" = "inflicted harm sensitivity"),
+    labels = c("alpha" = "α", "theta" = "β", "beta" = "θ"),
+    name = NULL
+  ) +
+  theme(
+    text = element_text(family = "serif"),
+    axis.ticks = element_line(size = 0.4, color = "black"),
+    panel.background = element_blank(),
+    plot.background = element_rect(fill = "transparent", color = NA),
+    panel.grid = element_blank(),
+    axis.title.y = element_text(colour = "black",size = 30, vjust = 0.5, face = "bold", family = "serif"),
+    axis.text.x = element_text(colour = "black",size = 30, face = "bold", family = "serif", margin = margin(t = 8)),
+    axis.text.y = element_text(size = 30,colour = "black", face = "bold", family = "serif"),
+    axis.line.x = element_line(colour = "black", size = 0.8),
+    axis.line.y = element_line(colour = "black", size = 0.8),
+    legend.position = "right",
+    legend.direction = "vertical",#horizontal
+    legend.title = element_blank(),
+    legend.text = element_text(size = 20, face = "bold", family = "serif"),
+    legend.background = element_blank(),
+    legend.box.background = element_blank(),
+    plot.margin = unit(c(2.5, 0.5, 0.5 , 0.5), "cm")
+  ) +
+  scale_fill_manual(values = color_palette, labels = c("inG", "outG")) +
+  scale_color_manual(values = color_palette, labels = c("inG", "outG"))
+
+print(para_plot)
+# 保存图表
+ggsave('./para_pairedT.png', para_plot, width = w, height = h, dpi = 300, bg = "transparent")
+```
+

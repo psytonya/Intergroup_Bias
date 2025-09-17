@@ -1,0 +1,295 @@
+---
+title: "model2025g"
+author: "lzt"
+date: "2025-03-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#rm(list=ls())
+require('knitr') 
+opts_chunk$set(tidy = FALSE, warning = FALSE, message = FALSE, cache = FALSE)
+
+#load libraries and functions
+suppressMessages(library('tidyverse')) # to organize data
+suppressMessages(library('rstan')) # for model fiting, using the sampling function
+rstan_options(auto_write = TRUE) #which allows you to automatically save a bare version of a compiled Stan program to the hard disk so that it does not need to be recompiled (unless you change it): https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started
+suppressMessages(library('loo'))   # for calculating looic and waic
+suppressMessages(library('data.table')) # to read data as data.table rather than data.frame.
+suppressMessages(library('bayesplot')) # to plot various figures for model checking
+suppressMessages(library('R.matlab')) # to save out .mat files
+suppressMessages(library('hypr')) # transfer hypothesis matrix to contrast matrix.
+
+
+#The following functions are adapted from the hBayesDM package (Ahn et al., 2017).
+source('./supp_funcs/func01_prepro.R') #preparing the data for the stan:
+###change for each project:IMPORTANT!!!!!!!!!!!!!!!!!####
+source('./supp_funcs/func04_extract_ic.R') #extract looic and waic of the model:                 no change needed
+source('./supp_funcs/func05_printfit.R') #print looic and waic of the model and their weights:   no change needed
+source('./supp_funcs/estimate_mode.R') #estimate the mode (众数) of the posterior distribution:  no change needed
+
+options(max.print = 99999) # for ploting all results of fitted model
+```
+
+1. load the csv data.
+```{r}
+raw_data                     <- fread(file='alldata_57sub_female_male_inoutgroup.csv') #load as data.table: https://digitaschools.com/read-csv-in-r-importing-data/
+raw_data                     <- subset(raw_data,select = -c(12)) #delete a column,diff from delete a col from data.frame
+data_df                      <- raw_data
+```
+
+2. data describing.
+```{r}
+# 1. Target variable: (1) choice: 1,2,3,4, corresponding to 0,2,4,6
+# 2. Predictor variable:  (1) offer_propoer (money to the proposer); (2)offer_recipt(money to participants/agents).
+# 3. supporting variables: subid (n=30), trial(1:160),targets(1=inter;2=noninter),party(1=SPP;2=TPP)
+```
+
+3. data cleaning
+```{r}
+#1. only left the necessary variables
+data_df <- data_df[,c('subid','trial','choice','offer_propoer','offer_recipt','in_outgroup')]#把需要用到的列拿出来
+
+#2. convert trial, ignoring run number
+data_df <- data_df %>%
+  group_by(subid) %>%
+  mutate(trial = 1:n()) %>% ungroup() # this is the real number of trials for each subject.
+
+data_df <- as.data.table(data_df)
+class(data_df)#check the data type
+
+
+```
+
+4. preparing data for stan
+```{r data loading}
+
+colnames_data_df <- colnames(data_df)#提取列名
+
+subjs    <- NULL   # List of unique subjects(1D) #NULL 代表连位置都没有，变量为空
+n_subj   <- NULL   # Total number of subjects (0D)
+t_subjs  <- NULL   # Number of trials per subject (2D or 1D)
+t_max    <- NULL   # Maximum number of trials across all subjects (0D)
+
+.N       <- NULL
+
+DT_trials <- data_df[, .N, by = c('subid')] #get the number of trials for each sub, data.table#返回每个被试有效总的trial数？
+
+subjs     <- DT_trials$subid    # sub IDs
+n_subj    <- length(subjs)      # no. of subs
+t_subjs   <- DT_trials$N # number of trials for each sub
+t_max     <- max(t_subjs) # maximal no. of trials across all subs.
+
+gen_file <- 1 #whether or not generate a data file, only generating for main analysis, not for simulation analysis
+
+general_info        <- list(subjs, n_subj, t_subjs, t_max, gen_file)#。创建list
+names(general_info) <- c('subjs', 'n_subj', 't_subjs', 't_max','gen_file')
+
+data_list <- prepro_func(data_df,general_info)  # get the data ready for stan; MUST check the 'func01_prepro.R' file in the 'supp_funcs' directory!!!!!!!这里的data_list是stan文件的一个输入，可以检查一下trial数目和编码方式和设定的是否一致，看有没有正确的清洗好数据；prepro_func是用来生成data_list的一个函数，需要修改，去函数部分进行修改
+##############################以上是数据整理部分
+```
+
+提取个体参数进行检验m3g0.6
+```{r individual paramters}
+###############################individual paramters#######
+load("./stan_output/fit_Nm3g0.6.RData")#从文件夹中加载RData数据【改】
+# Extract from the Stan fit object
+parVals <- rstan::extract(fit_m3g, permuted = TRUE)#将模型数据存入新文件【改】
+
+# Define measurement of individual parameters
+indPars <- "mean" #extracting mean of parameters（提取参数平均值）
+measure_indPars <- switch(indPars, mean = mean, median = median, mode = estimate_mode)#
+which_indPars <- c('alpha11','alpha12','theta11','theta12','beta11','beta12','tau') #vector 所有的参数名称
+#n_subj<-57 #【改】
+#subjs<-57#【改】
+multp_which_indPars <- NULL  # matrix
+
+# Measure all individual parameters (per subject)
+allIndPars <- as.data.frame(array(NA, c(n_subj, length(which_indPars))))
+#用array函数创建数组，array( data = NA, dim = length(data), dimnames = NULL)；行数为被试个数n_subj，列数为参数个数which_indPars
+m_allIndPars <- as.data.frame(array(NA, c(n_subj, 50))) #'50' here is an arbitrary value, just to make sure that the number of parameters are below this value.
+m_names  <- rep(NULL,50) #null重复50次
+
+for (i in 1:n_subj) {
+  
+  allIndPars[i, ] <- mapply(function(x) measure_indPars(parVals[[x]][, i]), which_indPars)
+  
+  if (length(multp_which_indPars)>0){  #for parameters in the matrix form
+    count <-0
+    for (nm in 1:length(multp_which_indPars)){
+      for (ds in 1:dim(parVals[[multp_which_indPars[nm]]])[3]){
+        count <- count + 1
+        m_allIndPars[i, count] <- sapply(list(parVals[[multp_which_indPars[nm]]][, i,ds]),function(x) measure_indPars(x))
+        m_names[count] <- paste0(multp_which_indPars[nm],ds)
+      }
+    }
+  }
+}
+
+if (length(multp_which_indPars)>0){
+  m_allIndPars <- m_allIndPars[,1:count]
+  m_allIndPars <- as.data.frame(m_allIndPars)
+  m_names      <- m_names[1:count]
+  
+  allIndPars <- cbind(subjs, allIndPars,m_allIndPars)
+  colnames(allIndPars) <- c("subjid", which_indPars,m_names)
+} else {
+  allIndPars <- cbind(subjs, allIndPars)
+  colnames(allIndPars) <- c("subjid", which_indPars) 
+}
+
+
+write.csv(allIndPars,file='IndPars_fit_Nm3g0.6.csv',row.names = FALSE)#【改】
+
+c('alpha11','alpha12','theta11','theta12','beta11','beta12','tau')
+
+
+alpha11     <- parVals$alpha11               # a 6000*30matrix 用mcmc做了6000次采样，每个个体有6000个参数，很多没有用，但还是全部提取出来，这里的30是30个被试的意思
+alpha12     <- parVals$alpha12               # a 6000*30 matrix
+theta11     <- parVals$theta11
+theta12     <- parVals$theta12
+beta11      <- parVals$beta11                # a 6000*30matrix
+beta12   <- parVals$beta12                # a 6000*30 matrix
+tau         <- parVals$tau                   # a 6000*30 matrix
+
+library(R.matlab)
+writeMat('IndPars_simdata_fit_Nm3g0.6_para.mat',alpha11 = alpha11,alpha12 = alpha12,theta11 = theta11,theta12 = theta12,beta11 = beta11,beta12 = beta12,tau = tau)#【改】
+
+```
+配对样本t
+```{r pair t test}
+data <- read.csv("IndPars_fit_Nm3g0.6.csv")
+alpha11 <- data$alpha11
+alpha12<- data$alpha12
+result <- t.test(alpha11, alpha12, paired = TRUE)
+result$p.value
+result$statistic
+result$conf.int
+
+beta11 <- data$beta11
+beta12<- data$beta12
+result <- t.test(beta11, beta12, paired = TRUE)
+result$p.value
+result$statistic
+result$conf.int
+
+theta11 <- data$theta11
+theta12<- data$theta12
+result <- t.test(theta11, theta12, paired = TRUE)
+result$p.value
+result$statistic
+result$conf.int
+```
+paired t
+```{r paied}
+# 读取数据
+data <- read.csv("IndPars_fit_Nm3g0.6.csv")
+
+# 创建空的数据框存储结果
+results_df <- data.frame(
+  Variable = character(),
+  p_value = numeric(),
+  statistic = numeric(),
+  conf_low = numeric(),
+  conf_high = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# 定义要分析的变量对
+variables <- list(
+  c("alpha11", "alpha12"),
+  c("beta11", "beta12"),
+  c("theta11", "theta12")
+)
+
+# 循环执行t检验并存储结果
+for (var_pair in variables) {
+  var1 <- data[[var_pair[1]]]
+  var2 <- data[[var_pair[2]]]
+  result <- t.test(var1, var2, paired = TRUE)
+  
+  # 添加结果到数据框
+  results_df <- rbind(results_df, data.frame(
+    Variable = paste(var_pair[1], "vs", var_pair[2]),
+    p_value = result$p.value,
+    statistic = result$statistic,
+    conf_low = result$conf.int[1],
+    conf_high = result$conf.int[2]
+  ))
+}
+
+# 导出结果到CSV文件
+write.csv(results_df, "paired_t_test_results.csv", row.names = FALSE)
+
+# 查看结果
+print(results_df)
+```
+
+
+提取个体参数进行检验m3g0.6
+```{r individual paramters}
+###############################individual paramters#######
+load("./stan_output/fit_Nm3g0.6_sim.RData")#从文件夹中加载RData数据【改】
+# Extract from the Stan fit object
+parVals <- rstan::extract(fit_m3g, permuted = TRUE)#将模型数据存入新文件【改】
+
+# Define measurement of individual parameters
+indPars <- "mean" #extracting mean of parameters（提取参数平均值）
+measure_indPars <- switch(indPars, mean = mean, median = median, mode = estimate_mode)#
+which_indPars <- c('alpha11','alpha12','theta11','theta12','beta11','beta12','tau') #vector 所有的参数名称
+#n_subj<-57 #【改】
+#subjs<-57#【改】
+multp_which_indPars <- NULL  # matrix
+
+# Measure all individual parameters (per subject)
+allIndPars <- as.data.frame(array(NA, c(n_subj, length(which_indPars))))
+#用array函数创建数组，array( data = NA, dim = length(data), dimnames = NULL)；行数为被试个数n_subj，列数为参数个数which_indPars
+m_allIndPars <- as.data.frame(array(NA, c(n_subj, 50))) #'50' here is an arbitrary value, just to make sure that the number of parameters are below this value.
+m_names  <- rep(NULL,50) #null重复50次
+
+for (i in 1:n_subj) {
+  
+  allIndPars[i, ] <- mapply(function(x) measure_indPars(parVals[[x]][, i]), which_indPars)
+  
+  if (length(multp_which_indPars)>0){  #for parameters in the matrix form
+    count <-0
+    for (nm in 1:length(multp_which_indPars)){
+      for (ds in 1:dim(parVals[[multp_which_indPars[nm]]])[3]){
+        count <- count + 1
+        m_allIndPars[i, count] <- sapply(list(parVals[[multp_which_indPars[nm]]][, i,ds]),function(x) measure_indPars(x))
+        m_names[count] <- paste0(multp_which_indPars[nm],ds)
+      }
+    }
+  }
+}
+
+if (length(multp_which_indPars)>0){
+  m_allIndPars <- m_allIndPars[,1:count]
+  m_allIndPars <- as.data.frame(m_allIndPars)
+  m_names      <- m_names[1:count]
+  
+  allIndPars <- cbind(subjs, allIndPars,m_allIndPars)
+  colnames(allIndPars) <- c("subjid", which_indPars,m_names)
+} else {
+  allIndPars <- cbind(subjs, allIndPars)
+  colnames(allIndPars) <- c("subjid", which_indPars) 
+}
+
+
+write.csv(allIndPars,file='IndPars_fit_Nm3g0.6sim.csv',row.names = FALSE)#【改】
+
+c('alpha11','alpha12','theta11','theta12','beta11','beta12','tau')
+
+
+alpha11     <- parVals$alpha11               # a 6000*30matrix 用mcmc做了6000次采样，每个个体有6000个参数，很多没有用，但还是全部提取出来，这里的30是30个被试的意思
+alpha12     <- parVals$alpha12               # a 6000*30 matrix
+theta11     <- parVals$theta11
+theta12     <- parVals$theta12
+beta11      <- parVals$beta11                # a 6000*30matrix
+beta12   <- parVals$beta12                # a 6000*30 matrix
+tau         <- parVals$tau                   # a 6000*30 matrix
+
+library(R.matlab)
+writeMat('IndPars_simdata_fit_Nm3g0.6_simpara.mat',alpha11 = alpha11,alpha12 = alpha12,theta11 = theta11,theta12 = theta12,beta11 = beta11,beta12 = beta12,tau = tau)#【改】
+
+```

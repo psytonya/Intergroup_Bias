@@ -1,0 +1,223 @@
+---
+title: "Para correlation plotting"
+author: "Chunliang Feng (SCNU)"
+date: Feb, 04, 2023
+output:
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+#rm(list=ls())
+require("knitr") 
+opts_chunk$set(tidy = FALSE, warning = FALSE, message = FALSE, cache = FALSE)
+
+#load libraries and functions
+suppressMessages(library("tidyverse")) # to organize data
+suppressMessages(library("ggplot2"))
+suppressMessages(library("gridExtra"))
+suppressMessages(library("ggpubr"))
+suppressMessages(library("data.table")) # to read data as data.table rather than data.frame.
+suppressMessages(library("bruceR"))
+
+```
+
+
+```{r local functions}
+scatterplot2 <- function(d, xlimits, xbreaks, ylimits, ybreaks, diffence, xlabs, ylabs) {
+  size1 = 16;
+  size2 = size1 + 4;
+  names(d)   <- c('x','y')
+  d[,'Diffence'] <- abs(d$x-d$y)
+  
+  # 自动生成断点（示例：按数据范围等距生成5个断点）
+  diff_min <- min(d$Diffence)
+  diff_max <- max(d$Diffence)
+  auto_breaks <- seq(diff_min, diff_max, length.out = 5)
+  
+  # 格式化断点为三位小数
+  formatted_labels <- sprintf("%.3f", auto_breaks)
+  
+  fig <- ggplot(d, aes(x = x, y = y)) +
+    geom_point(aes(fill = Diffence), shape = 21, colour = "#000000", size = 2, alpha = 0.8) + 
+    xlab(xlabs) + 
+    ylab(ylabs) +
+    scale_x_continuous(limits = xlimits, breaks = xbreaks, expand = c(0, 0)) +
+    scale_y_continuous(limits = ylimits, breaks = ybreaks, expand = c(0, 0)) +
+    stat_smooth(method = "lm", se = TRUE, colour = "black") +
+    scale_fill_continuous(
+      low = "#48C0AA", 
+      high = "#456990", 
+      breaks = auto_breaks,
+      labels = formatted_labels,  # 添加三位小数格式
+      name = "Difference"  # 可选：统一图例标题
+    ) +
+    theme_classic() +
+    theme(
+      legend.title = element_text(size = 14, colour = 'black', family = "serif",face = "bold"),
+      legend.text = element_text(size = 14, colour = 'black', family = "serif",face = "bold"),
+      axis.ticks.length = unit(0.1, "cm"),
+      axis.text.x = element_text(size = size1, colour = 'black', family = "serif",face = "bold"),
+      axis.text.y = element_text(size = size1, colour = 'black', family = "serif",face = "bold"),
+      axis.title = element_text(size = size2, colour = 'black', family = "serif",face = "bold"),
+      plot.margin = unit(c(1, 1, 1, 1), "cm")
+    )
+  return(fig)
+}
+```
+
+1. load the csv data
+```{r}
+real_data                     <- fread(file="real_IndPara_bestmodel.csv") #load as data.table: https://digitaschools.com/read-csv-in-r-importing-data/
+sim_fit_data                  <- fread(file="sim_IndPara_bestmodel.csv") #load as data.table
+names(real_data)           <- c("subjid_real", "alpha11_real","alpha12_real","theta11_real","theta12_real","beta11_real","beta12_real","tau_real")
+names(sim_fit_data)           <- c("subjid_sim", "alpha11_sim","alpha12_sim","theta11_sim","theta12_sim","beta11_sim","beta12_sim","tau_sim")
+
+all_data                      <- cbind(real_data,sim_fit_data)
+
+```
+
+2. plotting
+```{r plotting}
+#1.corr between real and simulated alpha11
+min(all_data$alpha11_real)
+max(all_data$alpha11_real)
+min(all_data$alpha11_sim)
+max(all_data$alpha11_sim)
+min(abs(all_data$alpha11_real-all_data$alpha11_sim))
+max(abs(all_data$alpha11_real-all_data$alpha11_sim))
+
+cor_alpha11 <- Corr(all_data[,c("alpha11_real","alpha11_sim")],
+                   method = "pearson"  # "pearson", "spearman", "kendall"
+                   )  
+print(cor_alpha11)
+
+figA <- scatterplot2(all_data[,c("alpha11_real","alpha11_sim")],c(0,1.5),seq(from=0,to=1.5,by=0.5),c(0,1.5),seq(from=0,to=1.5,by=0.5),c(0,0.5,1.0,1.5),xlabs='aversion to disadvantageous inequity(α) of in-group_realdata',ylabs='aversion to disadvantageous inequity(α) of in-group_simdata')
+ggexport(figA,filename = "./Figures_para_real_sim_alpha11.png",width=2800,height=2500,res = 300)
+
+#2.corr between real and simulated alpha12
+min(all_data$alpha12_real)
+max(all_data$alpha12_real)
+min(all_data$alpha12_sim)
+max(all_data$alpha12_sim)
+min(abs(all_data$alpha12_real-all_data$alpha12_sim))
+max(abs(all_data$alpha12_real-all_data$alpha12_sim))
+
+cor_alpha12 <- Corr(all_data[,c("alpha12_real","alpha12_sim")],
+                   method = "spearman"  # "pearson", "spearman", "kendall"
+                   )  
+print(cor_alpha12)
+
+figB <- scatterplot2(all_data[,c("alpha12_real","alpha12_sim")],c(0,5),seq(from=0,to=5,by=1),c(0,5),seq(from=0,to=5,by=1),c(0,0.5,1,1.5,2,2.5,3),xlabs='aversion to disadvantageous inequity(α) of out-group_realdata',ylabs='aversion to disadvantageous inequity(α) of out-group_simdata')
+ggexport(figB,filename ="./Figures_para_real_sim_alpha12.png",width=2800,height=2500,res = 300)
+
+#3.corr between real and simulated theta11
+min(all_data$theta11_real)
+max(all_data$theta11_real)
+min(all_data$theta11_sim)
+max(all_data$theta11_sim)
+min(abs(all_data$theta11_real-all_data$theta11_sim))
+max(abs(all_data$theta11_real-all_data$theta11_sim))
+
+cor_theta11 <- Corr(all_data[,c("theta11_real","theta11_sim")],
+                   method = "spearman"  # "pearson", "spearman", "kendall"
+                   )  
+print(cor_theta11)
+
+figC <- scatterplot2(all_data[,c("theta11_real","theta11_sim")],c(-0.5,1.5),seq(from=-0.5,to=1.5,by=0.5),c(-0.5,1.5),seq(from=-0.5,to=1.5,by=0.5),c(-0.5,0,0.5,1,1.5),xlabs='concerns for relative advantage(β) of in-group_realdata',ylabs='concerns for relative advantage(β) of in-group_simldata')
+ggexport(figC,filename = "./Figures_para_real_sim_theta11.png",width=2800,height=2500,res = 300)
+
+#4.corr between real and simulated theta12
+min(all_data$theta12_real)
+max(all_data$theta12_real)
+min(all_data$theta12_sim)
+max(all_data$theta12_sim)
+min(abs(all_data$theta12_real-all_data$theta12_sim))
+max(abs(all_data$theta12_real-all_data$theta12_sim))
+
+cor_theta12 <- Corr(all_data[,c("theta12_real","theta12_sim")],
+                   method = "spearman"  # "pearson", "spearman", "kendall"
+                   )  
+print(cor_theta12)
+
+figD <- scatterplot2(all_data[,c("theta12_real","theta12_sim")],c(-1,1.5),seq(from=-1,to=1.5,by=0.5),c(-1,1.5),seq(from=-1,to=1.5,by=0.5),c(-1,-0.5,0,0.5,1,1.5),xlabs='concerns for relative advantage(β) of out-group_realdata',ylabs='concerns for relative advantage(β) of out-group_simdata')
+ggexport(figD,filename ="./Figures_para_real_sim_theta12.png",width=2800,height=2500,res = 300)
+
+#5.corr between real and simulated beta11
+min(all_data$beta11_real)
+max(all_data$beta11_real)
+min(all_data$beta11_sim)
+max(all_data$beta11_sim)
+min(abs(all_data$beta11_real-all_data$beta11_sim))
+max(abs(all_data$beta11_real-all_data$beta11_sim))
+
+cor_beta11 <- Corr(all_data[,c("beta11_real","beta11_sim")],
+                   method = "spearman"  # "pearson", "spearman", "kendall"
+                   )  
+print(cor_beta11)
+
+figE <- scatterplot2(all_data[,c("beta11_real","beta11_sim")],c(0.5,3),seq(from=0.5,to=3,by=0.5),c(0.5,3),seq(from=0.5,to=3,by=0.5),c(0.5,1,1.5,2,2.5,3),xlabs='inflicted harm sensitivity(β) of in-group_realdata',ylabs='inflicted harm sensitivity(θ) of in-group_simdata')
+ggexport(figE,filename = "./Figures_para_real_sim_beta11.png",width=2800,height=2500,res = 300)
+
+
+
+#6.corr between real and simulated beta12
+min(all_data$beta12_real)
+max(all_data$beta12_real)
+min(all_data$beta12_sim)
+max(all_data$beta12_sim)
+min(abs(all_data$beta12_real-all_data$beta12_sim))
+max(abs(all_data$beta12_real-all_data$beta12_sim))
+
+cor_beta12 <- Corr(all_data[,c("beta12_real","beta12_sim")],
+                   method = "spearman"  # "pearson", "spearman", "kendall"
+                   )  
+print(cor_beta12)
+
+figF <- scatterplot2(all_data[,c("beta12_real","beta12_sim")],c(0,2.5),seq(from=0,to=2.5,by=0.5),c(0,2.5),seq(from=0,to=2.5,by=0.5),c(0,0.5,1,1.5,2,2.5),xlabs='inflicted harm sensitivity(β) of out-group_realdata',ylabs='inflicted harm sensitivity(β) of out-group_simdata')
+ggexport(figF,filename ="./Figures_para_real_sim_beta12.png",width=2800,height=2500,res = 300)
+
+
+
+#7.corr between real and simulated tau
+min(all_data$tau_real)
+max(all_data$tau_real)
+min(all_data$tau_sim)
+max(all_data$tau_sim)
+min(abs(all_data$tau_real-all_data$tau_sim))
+max(abs(all_data$tau_real-all_data$tau_sim))
+
+cor_tau <- Corr(all_data[,c("tau_real","tau_sim")],
+                   method = "spearman"  # "pearson", "spearman", "kendall"
+)  
+print(cor_tau)
+
+figG <- scatterplot2(all_data[,c("tau_real","tau_sim")],c(0,15),seq(from=0,to=15,by=3),c(0,15),seq(from=0,to=15,by=3),c(0,3,6,9,12,15),xlabs='tau (τ)_realdata',ylabs='tau (τ)_simdata')
+ggexport(figG,filename ="./Figures_para_real_sim_tau.png",width=2800,height=2500,res = 300)
+
+
+#8.corr between real and simulated all
+fig <- ggarrange(figA,figB,figC,figD,figE,figF,ncol=2,nrow=3,font.label = list(size = 20, color = "black"))
+ggexport(fig,filename = "./Figure_para_real_sim_all.png",width=8500,height=10000,res = 500)
+fig
+
+cor.test(all_data$alpha11_real,all_data$alpha11_sim)
+cor.test(all_data$alpha12_real,all_data$alpha12_sim)
+cor.test(all_data$theta11_real,all_data$theta11_sim)
+cor.test(all_data$theta12_real,all_data$theta12_sim)
+cor.test(all_data$beta11_real,all_data$beta11_sim)
+cor.test(all_data$beta12_real,all_data$beta12_sim)
+cor.test(all_data$tau_real,all_data$tau_sim)
+```
+
+
+
+
+
+
+
+
+
+
+
+

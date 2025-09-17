@@ -1,0 +1,173 @@
+---
+title: 'F3F_F3I'
+author: "lzt"
+date: "2025-06-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages}
+
+library(wordcloud2)
+library(ggplot2)
+library(gghalves)
+library(cowplot)
+library(readr)
+library(dplyr)
+library(htmlwidgets)
+library(webshot)
+
+```
+
+```{r rmpfc}
+# 读取CSV文件（需指定正确路径）
+df <- read.csv("./wordcloudrmpfc.csv")  # 假设文件在当前工作目录
+
+# 数据预处理（处理异常值，确保corr为正数）
+df <- df %>% 
+  filter(corr > 0) %>%  # 过滤负值（词云大小需正数，若需保留负值可调整逻辑）
+  mutate(corr = ifelse(corr == 0, 0.1, corr))  # 避免corr为0导致文字不显示
+
+
+# 排序并筛选前30个词（按corr降序）
+df_sorted <- df[order(-df$corr), ]
+df_top30 <- head(df_sorted, 30)
+
+# 绘制词云图（限制30个词，字体为serif）
+m <- wordcloud2(
+  data = df_top30, 
+  size = 1,                 # 词云整体大小
+  color = "#48C0AA",        # 统一颜色
+  backgroundColor = "white",# 背景色
+  fontFamily = "serif",     # 设置字体为衬线字体
+  shape = "diamond",#"circle",         # 形状
+  minRotation = 0,          # 文字不旋转
+  maxRotation = 0,          # 文字不旋转
+  #fontWeight = "bold",      # 粗体
+  minSize = 1,              # 最小文字大小
+  rotateRatio = 0,          # 旋转文字比例（0表示全部水平）
+  ellipticity = 0.65
+)
+print(m)
+# 保存为 HTML 文件
+saveWidget(m, "wordcloud_rmpfcsquare.html", selfcontained = TRUE)
+```
+
+```{r dacc}
+# 读取CSV文件（需指定正确路径）
+df <- read.csv("./wordclouddacc.csv")  # 假设文件在当前工作目录
+
+# 数据预处理（处理异常值，确保corr为正数）
+df <- df %>% 
+  filter(corr > 0) %>%  # 过滤负值（词云大小需正数，若需保留负值可调整逻辑）
+  mutate(corr = ifelse(corr == 0, 0.1, corr))  # 避免corr为0导致文字不显示
+
+
+# 排序并筛选前30个词（按corr降序）
+df_sorted <- df[order(-df$corr), ]
+df_top30 <- head(df_sorted, 30)
+
+# 绘制词云图（限制30个词，字体为serif）
+n <- wordcloud2(
+  data = df_top30, 
+  size = 1,                 # 词云整体大小
+  color = "#456990",        # 统一颜色
+  backgroundColor = "white",# 背景色
+  fontFamily = "serif",     # 设置字体为衬线字体
+  shape = "diamond",#"circle",         # 形状
+  minRotation = 0,          # 文字不旋转
+  maxRotation = 0,          # 文字不旋转
+  #fontWeight = "bold",      # 粗体
+  minSize = 1,              # 最小文字大小
+  rotateRatio = 0,          # 旋转文字比例（0表示全部水平）
+  ellipticity = 0.65
+)
+print(n)
+
+
+# 保存为 HTML 文件
+saveWidget(n, "wordcloud_daccsquare.html", selfcontained = TRUE)
+
+
+
+```
+
+```{r rmpfc}
+# 读取CSV文件（需指定正确路径）
+df <- read.csv("./wordcloudrmpfc.csv")  # 假设文件在当前工作目录
+
+# 数据预处理（处理异常值，确保corr为正数）
+df <- df %>% 
+  filter(corr > 0) %>%  # 过滤负值（词云大小需正数，若需保留负值可调整逻辑）
+  mutate(corr = ifelse(corr == 0, 0.1, corr))  # 避免corr为0导致文字不显示
+
+
+# 排序并筛选前30个词（按corr降序）
+df_sorted <- df[order(-df$corr), ]
+df_top30 <- head(df_sorted, 30)
+
+# 绘制词云图（限制30个词，字体为serif）
+m <- wordcloud2(
+  data = df_top30, 
+  size = 1,                 # 词云整体大小
+  color = "#48C0AA",        # 统一颜色
+  backgroundColor = "white",# 背景色
+  fontFamily = "serif",     # 设置字体为衬线字体
+  shape = "diamond",#"circle",         # 形状
+  minRotation = 0,          # 文字不旋转
+  maxRotation = 0,          # 文字不旋转
+  #fontWeight = "bold",      # 粗体
+  minSize = 1,              # 最小文字大小
+  rotateRatio = 0,          # 旋转文字比例（0表示全部水平）
+  ellipticity = 0.65
+)
+print(m)
+# 保存为 HTML 文件
+saveWidget(m, "wordcloud_rmpfcsquare.html", selfcontained = TRUE)
+```
+
+```{r dacc_yelow}
+# 读取CSV文件（需指定正确路径）
+df <- read.csv("./wordclouddacc.csv")  # 假设文件在当前工作目录
+
+# 数据预处理（处理异常值，确保corr为正数）
+df <- df %>% 
+  filter(corr > 0) %>%  # 过滤负值（词云大小需正数，若需保留负值可调整逻辑）
+  mutate(corr = ifelse(corr == 0, 0.1, corr))  # 避免corr为0导致文字不显示
+
+
+# 排序并筛选前30个词（按corr降序）
+df_sorted <- df[order(-df$corr), ]
+df_top30 <- head(df_sorted, 30)
+
+# 绘制词云图（限制30个词，字体为serif）
+n <- wordcloud2(
+  data = df_top30, 
+  size = 1,                 # 词云整体大小
+  color = "#FFFF00",        # 统一颜色
+  backgroundColor = "white",# 背景色
+  fontFamily = "serif",     # 设置字体为衬线字体
+  shape = "diamond",#"circle",         # 形状
+  minRotation = 0,          # 文字不旋转
+  maxRotation = 0,          # 文字不旋转
+  #fontWeight = "bold",      # 粗体
+  minSize = 1,              # 最小文字大小
+  rotateRatio = 0,          # 旋转文字比例（0表示全部水平）
+  ellipticity = 0.65
+)
+print(n)
+
+
+# 保存为 HTML 文件
+saveWidget(n, "wordcloud_daccsquare.html", selfcontained = TRUE)
+
+
+
+```
+
+
+
+

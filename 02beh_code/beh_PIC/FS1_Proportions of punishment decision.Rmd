@@ -1,0 +1,107 @@
+---
+title: "惩罚选择分布FS1"
+author: "lzt"
+date: "2025-08-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r duijitu}
+# 安装必要的包（如果尚未安装）
+if (!require("ggplot2")) install.packages("ggplot2")
+if (!require("dplyr")) install.packages("dplyr")
+if (!require("scales")) install.packages("scales")
+
+library(ggplot2)
+library(dplyr)
+library(scales)
+
+# 1) 构造示例数据（请替换为你的真实数据）
+df <- tibble::tribble(
+  ~split, ~group,     ~punish_type, ~percent,
+  "6:6",  "inG",  0,            982/1026,
+  "6:6",  "inG",  2,            24/1026,
+  "6:6",  "inG",  4,            17/1026,
+  "6:6",  "inG",  6,            3/1026,
+  "6:6",  "outG", 0,            745/1026,
+  "6:6",  "outG", 2,            201/1026,
+  "6:6",  "outG", 4,            59/1026,
+  "6:6",  "outG", 6,            21/1026,
+
+  "7:5",  "inG",  0,            794/1026,
+  "7:5",  "inG",  2,            201/1026,
+  "7:5",  "inG",  4,            23/1026,
+  "7:5",  "inG",  6,            8/1026,
+  "7:5",  "outG", 0,            470/1026,
+  "7:5",  "outG", 2,            451/1026,
+  "7:5",  "outG", 4,            84/1026,
+  "7:5",  "outG", 6,            21/1026,
+
+  "9:3",  "inG",  0,            404/1026,
+  "9:3",  "inG",  2,            422/1026,
+  "9:3",  "inG",  4,            183/1026,
+  "9:3",  "inG",  6,            17/1026,
+  "9:3",  "outG", 0,            161/1026,
+  "9:3",  "outG", 2,            441/1026,
+  "9:3",  "outG", 4,            373/1026,
+  "9:3",  "outG", 6,            51/1026,
+
+  "12:0", "inG",  0,            199/1026,
+  "12:0", "inG",  2,            239/1026,
+  "12:0", "inG",  4,            265/1026,
+  "12:0", "inG",  6,            323/1026,
+  "12:0", "outG", 0,            59/1026,
+  "12:0", "outG", 2,            119/1026,
+  "12:0", "outG", 4,            270/1026,
+  "12:0", "outG", 6,            578/1026
+)
+
+df_plot <- df %>%
+  mutate(
+    split = factor(split, levels = c("6:6", "7:5", "9:3", "12:0")),
+    group = factor(group, levels = c("inG", "outG")),
+    punish_type = factor(punish_type, levels = c(0, 2, 4, 6))
+  )
+
+p <- ggplot(df_plot, aes(x = group, y = percent, fill = punish_type)) +
+  geom_col(width = 0.7, color = "grey20") +  # 堆积柱
+  facet_grid(. ~ split, switch = "x") +      # 每个 split 一个面板
+  scale_fill_brewer(
+    palette = "Set2",
+    name = "Punishment decision type",
+    labels = c("0", "2", "4", "6")
+  ) +
+  scale_y_continuous(
+    name = "Punishment decision percentage",
+    labels = percent_format(accuracy = 1),   # 显示为百分比
+    limits = c(0, 1),
+    breaks = seq(0, 1, by = 0.2)
+  ) +
+  labs(x = "split") +
+  theme_minimal(base_size = 18) +
+  theme(
+    text = element_text(family = "serif", face = "bold"),  # 全局：新罗马+加粗
+    plot.background = element_rect(fill = "transparent", color = NA),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    strip.placement = "outside",
+    strip.text = element_text(face = "bold"),         # 分面标题加粗（冗余确保）
+    strip.background = element_rect(fill = "grey95", color = NA),
+    axis.title.x = element_text(margin = margin(t = 8), face = "bold"),
+    axis.title.y = element_text(margin = margin(r = 8), face = "bold"),
+    axis.text = element_text(face = "bold"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(face = "bold"),
+    legend.position = "top"
+  )
+w=8
+h=6
+
+ggsave('./punishemnt percentage.png', p, width = w, height = h, dpi = 300, bg = "transparent")
+
+```
+

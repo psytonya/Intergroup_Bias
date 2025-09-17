@@ -1,0 +1,196 @@
+---
+title: "Para correlation plotting"
+author: "Chunliang Feng (SCNU)"
+date: Feb, 04, 2023
+output:
+  html_document:
+    code_folding: hide
+---
+```{r setup, include=FALSE}
+#rm(list=ls())
+require("knitr") 
+opts_chunk$set(tidy = FALSE, warning = FALSE, message = FALSE, cache = FALSE)
+
+#load libraries and functions
+suppressMessages(library("tidyverse")) # to organize data
+suppressMessages(library("ggplot2"))
+suppressMessages(library("gridExtra"))
+suppressMessages(library("ggpubr"))
+suppressMessages(library("data.table")) # to read data as data.table rather than data.frame.
+
+```
+
+#0. load the csv data
+```{r}
+all_data                      <- fread(file="onesampleT.csv")
+```
+
+#1.F2F_beta_outGvsinG Fout_in
+#1.1 local functions
+```{r local functions}
+
+scatterplot2 <- function(d, xlimits, xbreaks, ylimits, ybreaks, xlabs, ylabs) {
+  size1 <- 30
+
+  names(d) <- c('x', 'y')
+  
+  fig <- ggplot(d, aes(x = x, y = y)) +
+    geom_point(shape = 21, colour = "#48C0AA", size = 2, fill = "#48C0AA", alpha = 0.7) +
+    #geom_point(shape = 16, size = 4, color = "#FF8a5e", alpha = 0.6) +
+    xlab(xlabs) +
+    ylab(ylabs) +
+    scale_x_continuous(limits = xlimits, breaks = xbreaks, expand = c(0, 0)) +
+    scale_y_continuous(limits = ylimits, breaks = ybreaks, expand = c(0, 0)) +
+    stat_smooth(method = "lm", se = TRUE, colour = "#333333") +
+    theme_classic() +
+    theme(
+      axis.ticks.length = unit(0.1, "cm"),
+      axis.text.x = element_text(size = size1,face = "bold", colour = '#4D4D4D', family = "serif"),
+      axis.text.y = element_text(size = size1,face = "bold", colour = '#4D4D4D', family = "serif"),
+      axis.title = element_text(size = size1, face = "bold",colour = 'black', family = "serif"),
+    )+
+  theme(
+    plot.margin = unit(c(2.5, 0.5, 0.5 , 0.5), "cm")
+  )
+  return(fig)
+}
+```
+
+#1.2 plotting
+```{r plotting}
+# 假设 all_data 已经加载
+figA <- scatterplot2(
+  all_data[, c("beta_outGvsinG", "Fout_in")],
+  xlimits = c(-2, 2),
+  xbreaks = seq(from = -2, to = 2, by = 1),
+  ylimits = c(-2, 6),
+  ybreaks = seq(from = -2, to = 6, by = 2),
+  xlabs = "inflicted harm (outG-inG)",
+  ylabs = 'proactive punishment (outG-inG)'
+)
+
+w = 6  # 增加宽度以适应右侧图例
+h = 6
+ggsave('./Pic/beta_F.png', 
+       width = w, 
+       height = h, 
+       device = "png",   
+       dpi = 300)
+# 计算相关性
+cor.test(all_data$beta_outGvsinG, all_data$Fout_in)
+
+```
+
+#2.F2E_beta_outGvsinG UFout_in
+#2.1 local functions
+```{r local functions}
+
+scatterplot2 <- function(d, xlimits, xbreaks, ylimits, ybreaks, xlabs, ylabs) {
+  size1 <- 30
+
+  names(d) <- c('x', 'y')
+  
+  fig <- ggplot(d, aes(x = x, y = y)) +
+    geom_point(shape = 21, colour = "#456990", size = 2, fill = "#456990", alpha = 0.7) +
+    #geom_point(shape = 16, size = 4, color = "#FF8a5e", alpha = 0.6) +
+    xlab(xlabs) +
+    ylab(ylabs) +
+    scale_x_continuous(limits = xlimits, breaks = xbreaks, expand = c(0, 0)) +
+    scale_y_continuous(limits = ylimits, breaks = ybreaks, expand = c(0, 0)) +
+    stat_smooth(method = "lm", se = TRUE, colour = "#333333") +
+    theme_classic() +
+    theme(
+      axis.ticks.length = unit(0.1, "cm"),
+      axis.text.x = element_text(size = size1,face = "bold", colour = '#4D4D4D', family = "serif"),
+      axis.text.y = element_text(size = size1,face = "bold", colour = '#4D4D4D', family = "serif"),
+      axis.title = element_text(size = size1, face = "bold",colour = 'black', family = "serif"),
+    )+
+  theme(
+    plot.margin = unit(c(2.5, 0.5, 0.5 , 0.5), "cm")
+  )
+  return(fig)
+}
+```
+
+#2.2 plotting
+```{r plotting}
+# 假设 all_data 已经加载
+figA <- scatterplot2(
+  all_data[, c("beta_outGvsinG", "UFout_in")],
+  xlimits = c(-2, 2),
+  xbreaks = seq(from = -2, to = 2, by = 1),
+  ylimits = c(-2, 6),
+  ybreaks = seq(from = -2, to = 6, by = 2),
+  xlabs = "inflicted harm (outG-inG)",
+  ylabs = 'reactive punishment (outG-inG)'
+)
+
+w = 6  # 增加宽度以适应右侧图例
+h = 6
+ggsave('./Pic/beta_UF.png', 
+       width = w, 
+       height = h, 
+       device = "png",   
+       dpi = 300)
+# 计算相关性
+cor.test(all_data$beta_outGvsinG, all_data$Fout_in)
+
+```
+
+
+#3.F5C_alpha_outGvsinG mPFCout_in
+#3.1 local functions
+```{r local functions}
+
+scatterplot2 <- function(d, xlimits, xbreaks, ylimits, ybreaks, xlabs, ylabs) {
+  size1 <- 30
+
+  names(d) <- c('x', 'y')
+  
+  fig <- ggplot(d, aes(x = x, y = y)) +
+    geom_point(shape = 21, colour = "#48C0AA", size = 2, fill = "#48C0AA", alpha = 0.7) +
+    #geom_point(shape = 16, size = 4, color = "#FF8a5e", alpha = 0.6) +
+    xlab(xlabs) +
+    ylab(ylabs) +
+    scale_x_continuous(limits = xlimits, breaks = xbreaks, expand = c(0, 0)) +
+    scale_y_continuous(limits = ylimits, breaks = ybreaks, expand = c(0, 0)) +
+    stat_smooth(method = "lm", se = TRUE, colour = "#333333") +
+    theme_classic() +
+    theme(
+      axis.ticks.length = unit(0.1, "cm"),
+      axis.text.x = element_text(size = size1,face = "bold", colour = '#4D4D4D', family = "serif"),
+      axis.text.y = element_text(size = size1,face = "bold", colour = '#4D4D4D', family = "serif"),
+      axis.title = element_text(size = size1, face = "bold",colour = 'black', family = "serif"),
+    )+
+  theme(
+    plot.margin = unit(c(2.5, 1.5, 1.5 , 1.5), "cm")
+  )
+  return(fig)
+}
+```
+
+#3.2 ploting
+```{r plotting}
+# 假设 all_data 已经加载
+figA <- scatterplot2(
+  all_data[, c("alpha_outGvsinG", "rmpfc")],
+  xlimits = c(-1.5, 3),
+  xbreaks = seq(from = -1.5, to = 3, by = 1.5),
+  ylimits = c(-25, 10),
+  ybreaks = seq(from = -25, to = 10, by = 5),
+  #xlabs = "aversion to disadvantageous inequity (α)\n(outG-inG)",
+  xlabs = "α (inG-outG)",
+  ylabs = 'parameters estimate in mPFC\n(inG-outG)'
+)
+
+w = 8  # 增加宽度以适应右侧图例
+h = 8
+ggsave('./Pic/alpha_rmpfc.png', 
+       width = w, 
+       height = h, 
+       device = "png",   
+       dpi = 300)
+# 计算相关性
+cor.test(all_data$alpha_outGvsinG, all_data$rmpfc)
+
+```

@@ -1,0 +1,137 @@
+---
+title: "Para correlation plotting"
+author: "Chunliang Feng (SCNU)"
+date: Feb, 04, 2023
+output:
+  html_document:
+    code_folding: hide
+---
+#1.load package
+```{r setup, include=FALSE}
+#rm(list=ls())
+require("knitr") 
+opts_chunk$set(tidy = FALSE, warning = FALSE, message = FALSE, cache = FALSE)
+
+#load libraries and functions
+suppressMessages(library("tidyverse")) # to organize data
+suppressMessages(library("ggplot2"))
+suppressMessages(library("gridExtra"))
+suppressMessages(library("ggpubr"))
+suppressMessages(library("data.table")) # to read data as data.table rather than data.frame.
+suppressMessages(library("bruceR"))
+```
+
+#2.local function
+```{r local functions}
+scatterplot2 <- function(d, xlimits, xbreaks, ylimits, ybreaks, diffence, xlabs, ylabs) {
+  size1 = 16;
+  size2 = size1 + 4;
+  names(d)   <- c('x','y')
+  d[,'Diffence'] <- abs(d$x-d$y)
+  
+  # 自动生成断点（示例：按数据范围等距生成5个断点）
+  diff_min <- min(d$Diffence)
+  diff_max <- max(d$Diffence)
+  auto_breaks <- seq(diff_min, diff_max, length.out = 5)
+  
+  # 格式化断点为三位小数
+  formatted_labels <- sprintf("%.3f", auto_breaks)
+  
+  fig <- ggplot(d, aes(x = x, y = y)) +
+    geom_point(aes(fill = Diffence), shape = 21, colour = "#000000", size = 2, alpha = 0.8) + 
+    xlab(xlabs) + 
+    ylab(ylabs) +
+    scale_x_continuous(limits = xlimits, breaks = xbreaks, expand = c(0, 0)) +
+    scale_y_continuous(limits = ylimits, breaks = ybreaks, expand = c(0, 0)) +
+    stat_smooth(method = "lm", se = TRUE, colour = "black") +
+    scale_fill_continuous(
+      # low = "#E41A1C", 
+      # high = "#FEC44F", 
+      low = "#48C0AA", 
+      high = "#456990",
+      breaks = auto_breaks,
+      labels = formatted_labels,  # 添加三位小数格式
+      name = "Difference"  # 可选：统一图例标题
+    ) +
+    theme_classic() +
+    theme(
+      legend.title = element_text(size = 14, colour = 'black', family = "serif",face = "bold"),
+      legend.text = element_text(size = 14, colour = 'black', family = "serif",face = "bold"),
+      axis.ticks.length = unit(0.1, "cm"),
+      axis.text.x = element_text(size = size1, colour = 'black', family = "serif",face = "bold"),
+      axis.text.y = element_text(size = size1, colour = 'black', family = "serif",face = "bold"),
+      axis.title = element_text(size = size2, colour = 'black', family = "serif",face = "bold"),
+      plot.margin = unit(c(1, 1, 1, 1), "cm")
+    )
+  return(fig)
+}
+```
+
+#3.之前做过后面就可以不用再做了
+```{r data cleaning}
+#data cleaning 手动
+data_real <- read.csv('alldata_57sub_female_male_inoutgroup.csv')
+result_real <- data_real %>%
+  group_by(subid) %>%
+  summarise(mean_punishment_real = mean(choice_raw))
+write.csv(result_real, file = "real_sub_mean_result.csv", row.names = FALSE)
+
+data_real <- read.csv('alldata_57sub_female_male_inoutgroup.csv')
+result_real <- data_real %>%
+  group_by(Trial) %>%
+  summarise(mean_punishment_real = mean(choice_raw))
+write.csv(result_real, file = "real_trial_mean_result.csv", row.names = FALSE)
+#把结果手动粘贴到trialbytrial_subjectbysubject_real_simulation.csv，注意sub顺序 
+#还有一部分ZT3生成的sim_data_changepara_144trial(mean57sub),mat里面,假数据，也手动粘贴
+```
+
+4. load the csv data
+```{r}
+data<-fread(file="trialbytrial_subjectbysubject_real_simulation.csv") #load as data.table: https://digitaschools.com/read-csv-in-r-importing-data/
+#sim_fit_data <- fread(file="IndPars_inout_simdata_fitm4a6.csv") #load as data.table
+names(data)<- c("real_data_trial","sim_data_trial","real_data_sub", "sim_data_sub")
+data<- subset(data,select = -(5)) #delete a column,diff from delete a col from data.frame
+data1 <- data[1:144,1:2]  
+data2 <- data[1:57,3:4]  
+all_data  <- data1
+all_data2<-data2
+```
+
+#5. plotting
+```{r plotting}
+# 1. corr between real and simulated trial
+min(all_data$real_data_trial)
+max(all_data$real_data_trial)
+min(all_data$sim_data_trial)
+max(all_data$sim_data_trial)
+min(abs(all_data$real_data_trial-all_data$sim_data_trial))
+max(abs(all_data$real_data_trial-all_data$sim_data_trial))
+fig_trial <- scatterplot2(all_data[,c("real_data_trial","sim_data_trial")],c(0,6),seq(from=0,to=6,by=0.5),c(0,6),seq(from=0,to=6,by=0.5),c(0.0,0.2,0.4,0.6,0.8),xlabs='Actual behaviors(trial by trial)',ylabs='Model prediction(trial by trial)')
+ggexport(fig_trial,filename = "./Figures_sim_real_trialbytrial44.png",width=2500,height=1500,res = 300)
+
+# 2. corr between real and simulated sub
+min(all_data2$real_data_sub)
+max(all_data2$real_data_sub)
+min(all_data2$sim_data_sub)
+max(all_data2$sim_data_sub)
+min(abs(all_data2$real_data_sub-all_data2$real_data_sub))
+max(abs(all_data2$sim_data_sub-all_data2$sim_data_sub))
+fig_sub <- scatterplot2(all_data2[,c("real_data_sub","sim_data_sub")],c(0,4),seq(from=0,to=4,by=0.5),c(0,4),seq(from=0,to=4,by=0.5),c(0.4,0.2,0.4,0.6,0.8),xlabs='Actual behaviors(subject by subject)',ylabs='Model prediction(subject by subject')
+ggexport(fig_sub,filename = "./Figures_sim_real_subbysub57.png",width=2500,height=1500,res = 300)
+
+
+cor.test(all_data2$real_data_sub,all_data2$sim_data_sub,
+         method = "pearson"#"kendall", "spearman"
+         )
+cor.test(all_data$real_data_trial,all_data$sim_data_trial,
+         method = "pearson"#"kendall", "spearman"
+         )
+
+
+
+```
+
+
+
+
+

@@ -1,0 +1,232 @@
+---
+title: "gPPI_F4"
+author: "lzt"
+date: "2025-06-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load package}
+source("function_rainclouds.R")
+source("function_summarySE.R")
+library(ggplot2)
+library(gghalves)
+library(cowplot)
+library(readr)
+library(dplyr)
+```
+
+```{r gPPI_Ventral_striatum_dACC}
+library(ggplot2)
+library(dplyr)
+library(Rmisc)  # 加载Rmisc包以使用summarySE函数
+
+# 读取数据并进行预处理
+Main_effect_membership <- read.csv("./cloudrain_brain_F.csv")
+Main_effect_membership <- Main_effect_membership[, c(1, 2, 10)]
+
+# 添加因子化的membership列
+Main_effect_membership$membership <-
+  ifelse(Main_effect_membership$membership == 1, "in-group", "out-group")
+
+# 将列转化为因子型并指定顺序
+custom_order <- c("in-group", "out-group")
+Main_effect_membership$membership <- factor(Main_effect_membership$membership, levels = custom_order)
+
+# 定义颜色方案
+color_scheme <- c("in-group" = "#48C0AA", "out-group" = "#456990")
+
+# 计算描述性统计量（均值和标准误）
+sumrepdat <- summarySE(
+  Main_effect_membership,
+  measurevar = "Ventral_striatum_dACC",
+  groupvars = c("membership")
+)
+
+## 图形参数设置
+w <- 5  # 宽度
+h <- 5  # 高度
+
+# 创建绘图
+ggplot(Main_effect_membership, aes(x = membership, y = Ventral_striatum_dACC, color = membership)) +
+  # 添加散点图，使用jitter避免点重叠
+  geom_jitter(
+    position = position_jitter(width = 0.2),
+    alpha = 0.6,
+    size = 2,
+  ) +
+  
+  # 绘制均值点
+  geom_point(
+    data = sumrepdat,
+    aes(x = membership, y = Ventral_striatum_dACC_mean, group = membership),
+    shape = 19,
+    size =2,
+    stroke = 1.5,
+    color="#404040"
+  ) +
+  
+  # 绘制误差线
+  geom_errorbar(
+    data = sumrepdat,
+    aes(
+      x = membership, 
+      y = Ventral_striatum_dACC_mean, 
+      group = membership,
+      ymin = Ventral_striatum_dACC_mean - sem,
+      ymax = Ventral_striatum_dACC_mean + sem
+    ),
+    width = 0.2,
+    size = 1.2,
+     color="#404040"
+  ) +
+  
+  # 设置坐标轴和标题
+  labs(x = NULL, y = "dACC-Ventral striatum\nconnectivity") +
+  scale_y_continuous(
+    expand = c(0, 0), 
+    breaks = c(-4, -2, 0, 2, 4, 6),
+    limits = c(-4, 6)
+  ) +
+  scale_x_discrete(
+    limits = custom_order,
+    labels = c("inG", "outG")
+  ) +
+  
+  # 自定义主题
+  theme(
+    text = element_text(family = "serif"),
+    axis.ticks = element_line(size = 0.4, color = "black"),
+    panel.background = element_blank(),
+    plot.background = element_rect(fill = "transparent", color = NA),
+    panel.grid = element_blank(),
+    axis.title.y = element_text(size = 26, colour = "black", vjust = 0.5, face = "bold", family = "serif"),
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(size = 26, colour = "black", face = "bold", family = "serif", margin = margin(t = 8)),
+    axis.text.y = element_text(size = 26, colour = "black", face = "bold", family = "serif"),
+    axis.line.x = element_line(colour = "black", size = 0.8),
+    axis.line.y = element_line(colour = "black", size = 0.8),
+    legend.position = "none",
+    plot.margin = unit(c(2, 1, 1, 1), "cm")
+  ) +
+  
+  # 设置颜色
+  scale_color_manual(values = color_scheme)
+
+# 保存图形
+ggsave('./Ventral_striatum_dACC_fair.png', 
+       width = w, 
+       height = h, 
+       device = "png",
+       dpi = 300,
+       bg = "transparent")
+```
+
+```{r gPPI_Thalamus_dACC}
+library(ggplot2)
+library(dplyr)
+library(Rmisc)  # 加载Rmisc包以使用summarySE函数
+
+# 读取数据并进行预处理
+Main_effect_membership <- read.csv("./cloudrain_brain_F.csv")
+Main_effect_membership <- Main_effect_membership[, c(1, 2, 11)]
+
+# 添加因子化的membership列
+Main_effect_membership$membership <-
+  ifelse(Main_effect_membership$membership == 1, "in-group", "out-group")
+
+# 将列转化为因子型并指定顺序
+custom_order <- c("in-group", "out-group")
+Main_effect_membership$membership <- factor(Main_effect_membership$membership, levels = custom_order)
+
+# 定义颜色方案
+color_scheme <- c("in-group" = "#48C0AA", "out-group" = "#456990")
+
+# 计算描述性统计量（均值和标准误）
+sumrepdat <- summarySE(
+  Main_effect_membership,
+  measurevar = "Thalamus_dACC",
+  groupvars = c("membership")
+)
+
+## 图形参数设置
+w <- 5  # 宽度
+h <- 5  # 高度
+
+# 创建绘图
+ggplot(Main_effect_membership, aes(x = membership, y = Thalamus_dACC, color = membership)) +
+  # 添加散点图，使用jitter避免点重叠
+  geom_jitter(
+    position = position_jitter(width = 0.2),
+    alpha = 0.6,
+    size = 2,
+  ) +
+  
+  # 绘制均值点
+  geom_point(
+    data = sumrepdat,
+    aes(x = membership, y = Thalamus_dACC_mean, group = membership),
+    shape = 19,
+    size =2,
+    stroke = 1.5,
+    color="#404040"
+  ) +
+  
+  # 绘制误差线
+  geom_errorbar(
+    data = sumrepdat,
+    aes(
+      x = membership, 
+      y = Thalamus_dACC_mean, 
+      group = membership,
+      ymin = Thalamus_dACC_mean - sem,
+      ymax = Thalamus_dACC_mean + sem
+    ),
+    width = 0.2,
+    size = 1.2,
+    color="#404040"
+  ) +
+  
+  # 设置坐标轴和标题
+  labs(x = NULL, y = "dACC-Thalamus\nconnectivity") +
+  scale_y_continuous(
+    expand = c(0, 0), 
+    breaks = c(-6, -3, 0, 3, 6, 9),
+    limits = c(-6, 9)
+  ) +
+  scale_x_discrete(
+    limits = custom_order,
+    labels = c("inG", "outG")
+  ) +
+  
+  # 自定义主题
+  theme(
+    text = element_text(family = "serif"),
+    axis.ticks = element_line(size = 0.4, color = "black"),
+    panel.background = element_blank(),
+    plot.background = element_rect(fill = "transparent", color = NA),
+    panel.grid = element_blank(),
+    axis.title.y = element_text(size = 26, colour = "black", vjust = 0.5, face = "bold", family = "serif"),
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(size = 26, colour = "black", face = "bold", family = "serif", margin = margin(t = 8)),
+    axis.text.y = element_text(size = 26, colour = "black", face = "bold", family = "serif"),
+    axis.line.x = element_line(colour = "black", size = 0.8),
+    axis.line.y = element_line(colour = "black", size = 0.8),
+    legend.position = "none",
+    plot.margin = unit(c(2, 1, 1, 1), "cm")
+  ) +
+  
+  # 设置颜色
+  scale_color_manual(values = color_scheme)
+
+# 保存图形
+ggsave('./Thalamus_dACC_fair.png', 
+       width = w, 
+       height = h, 
+       device = "png",
+       dpi = 300,
+       bg = "transparent")
+```

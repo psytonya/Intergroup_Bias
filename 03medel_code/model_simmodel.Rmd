@@ -1,0 +1,377 @@
+---
+title: "inter_TPP_model"
+author: "Chunliang Feng (SCNU)"
+date: "March, 13, 2023"
+output:
+  html_document:
+    code_folding: hide
+  word_document: default
+  pdf_document: default
+---
+```{r setup, include=FALSE}
+#rm(list=ls())
+require('knitr') 
+opts_chunk$set(tidy = FALSE, warning = FALSE, message = FALSE, cache = FALSE)
+
+#load libraries and functions
+suppressMessages(library('tidyverse')) # to organize data
+suppressMessages(library('rstan')) # for model fiting, using the sampling function
+rstan_options(auto_write = TRUE) #which allows you to automatically save a bare version of a compiled Stan program to the hard disk so that it does not need to be recompiled (unless you change it): https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started
+suppressMessages(library('loo'))   # for calculating looic and waic
+suppressMessages(library('data.table')) # to read data as data.table rather than data.frame.
+suppressMessages(library('bayesplot')) # to plot various figures for model checking
+suppressMessages(library('R.matlab')) # to save out .mat files
+suppressMessages(library('hypr')) # transfer hypothesis matrix to contrast matrix.
+
+
+#The following functions are adapted from the hBayesDM package (Ahn et al., 2017).
+source('./supp_funcs/func01_prepro.R') #preparing the data for the stan:
+###change for each project:IMPORTANT!!!!!!!!!!!!!!!!!####
+source('./supp_funcs/func04_extract_ic.R') #extract looic and waic of the model:                 no change needed
+source('./supp_funcs/func05_printfit.R') #print looic and waic of the model and their weights:   no change needed
+source('./supp_funcs/estimate_mode.R') #estimate the mode (众数) of the posterior distribution:  no change needed
+
+options(max.print = 99999) # for ploting all results of fitted model
+```
+
+1. load the csv data.
+```{r}
+raw_data                     <- fread(file='57simulate_bestmodel_data.csv') #load as data.table: https://digitaschools.com/read-csv-in-r-importing-data/
+raw_data                     <- subset(raw_data,select = -c(10)) #delete a column,diff from delete a col from data.frame
+data_df                      <- raw_data
+```
+
+2. data describing.
+```{r}
+# 1. Target variable: (1) choice: 1,2,3,4, corresponding to 0,2,4,6
+# 2. Predictor variable:  (1) offer_propoer (money to the proposer); (2)offer_recipt(money to participants/agents).
+# 3. supporting variables: subid (n=30), trial(1:160),targets(1=inter;2=noninter),party(1=SPP;2=TPP)
+```
+
+3. data cleaning
+```{r}
+#1. only left the necessary variables
+data_df <- data_df[,c('subid','trial','choice','offer_propoer','offer_recipt','in_outgroup')]#把需要用到的列拿出来
+
+#2. convert trial, ignoring run number
+data_df <- data_df %>%
+  group_by(subid) %>%
+  mutate(trial = 1:n()) %>% ungroup() # this is the real number of trials for each subject.
+
+data_df <- as.data.table(data_df)
+class(data_df)#check the data type
+
+
+```
+
+4. preparing data for stan
+```{r data loading}
+
+colnames_data_df <- colnames(data_df)#提取列名
+
+subjs    <- NULL   # List of unique subjects(1D) #NULL 代表连位置都没有，变量为空
+n_subj   <- NULL   # Total number of subjects (0D)
+t_subjs  <- NULL   # Number of trials per subject (2D or 1D)
+t_max    <- NULL   # Maximum number of trials across all subjects (0D)
+
+.N       <- NULL
+
+DT_trials <- data_df[, .N, by = c('subid')] #get the number of trials for each sub, data.table#返回每个被试有效总的trial数？
+
+subjs     <- DT_trials$subid    # sub IDs
+n_subj    <- length(subjs)      # no. of subs
+t_subjs   <- DT_trials$N # number of trials for each sub
+t_max     <- max(t_subjs) # maximal no. of trials across all subs.
+
+gen_file <- 1 #whether or not generate a data file, only generating for main analysis, not for simulation analysis
+
+general_info        <- list(subjs, n_subj, t_subjs, t_max, gen_file)#。创建list
+names(general_info) <- c('subjs', 'n_subj', 't_subjs', 't_max','gen_file')
+
+data_list <- prepro_func(data_df,general_info)  # get the data ready for stan; MUST check the 'func01_prepro.R' file in the 'supp_funcs' directory!!!!!!!这里的data_list是stan文件的一个输入，可以检查一下trial数目和编码方式和设定的是否一致，看有没有正确的清洗好数据；prepro_func是用来生成data_list的一个函数，需要修改，去函数部分进行修改
+##############################以上是数据整理部分
+```
+
+above datapreparation,now start modeling
+
+3.7 set up model Nm3g
+```{r set up model Nm3g}
+ncore <- 3
+options(mc.cores = ncore) #adapted from hBayesDM_model.R
+rstan_options(javascript=FALSE)
+#model m4, 3 parameters: alpha,beta,tau
+pars_m3g <- c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_beta11','mu_beta12','mu_tau','sigma','alpha11','alpha12','theta11','theta12','beta11','beta12','tau','log_lik')
+fit_m3g <- stan(file=paste0(getwd(),'/stan_model/Nm3g0.6.stan'), data=data_list,
+pars = pars_m3g,
+chains = 3,
+iter = 12000,
+warmup = 6000,
+thin = 1,
+control = list(adapt_delta = 0.99,
+stepsize = 1,
+max_treedepth = 15))
+#################################################################model fit & save model & plots#############################################################
+
+save(fit_m3g,file ='./stan_output/fit_Nm3g0.6_Sim.RData')#非常重要！！！一定要在本地路径建相应文件夹stan_output
+printFit(fit_m3g,ic='both')
+print(fit_m3g, pars = c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_beta11','mu_beta12','mu_tau','sigma')) #all are group-level parameters
+
+#plot group parameters
+stan_dens(fit_m3g, pars = paste0(c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_beta11','mu_beta12','mu_tau','sigma')), separate_chains = T) #should overlap to each other
+#plot individual parameters
+stan_plot(fit_m3g, pars = 'alpha11', ci_level = 0.95, outer_level = 1, show_density = T, point_est = 'mean')
+stan_plot(fit_m3g, pars = 'alpha12', ci_level = 0.95, outer_level = 1, show_density = T, point_est = 'mean')
+stan_plot(fit_m3g, pars = 'theta11', ci_level = 0.95, outer_level = 1, show_density = T, point_est = 'mean')
+stan_plot(fit_m3g, pars = 'theta12', ci_level = 0.95, outer_level = 1, show_density = T, point_est = 'mean')
+stan_plot(fit_m3g, pars = 'beta11', ci_level = 0.95, outer_level = 1, show_density = T, point_est = 'mean')
+stan_plot(fit_m3g, pars = 'beta12', ci_level = 0.95, outer_level = 1, show_density = T, point_est = 'mean')
+stan_plot(fit_m3g, pars = 'tau', ci_level = 0.95, outer_level = 1, show_density = T, point_est = 'mean')
+
+#################################################################model diagnostics#########################################################################
+#various plotting with bayesplot: see also https://dastatis.github.io/pdf/StanAdvent2018/bayesplot.html
+#see also: 'RStan: the R interface to Stan'
+#see also: https://betanalpha.github.io/assets/case_studies/rstan_workflow.html
+###1. Convergence and divergence
+#1.1. overlaps between different chains
+traceplot(fit_m3g, pars = c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_beta11','mu_beta12','mu_tau','sigma')) #all are group-level parameters # should be stationary and overylap to each other
+mcmc_rank_hist(fit_m3g, pars = paste0(c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_beta11','mu_beta12','mu_tau','sigma[1]','sigma[2]','sigma[3]','sigma[4]','sigma[5]','sigma[6]','sigma[7]')), ref_line = TRUE) # should be uniformly distributed ##A traditional traceplot (mcmc_trace()) visualizes how sampled values the MCMC chains mix over the course of sampling. A rank histogram (mcmc_rank_hist()) visualizes how the ranks of values from the chains mix together. An ideal plot would show the ranks mixing or overlapping in a uniform distribution##
+
+
+#1.2. Rhat, must be below 1.01 to make sure that parameter estimates could be trusted (Baribault & Collins, 2022)Rhat小于1.01
+#get the rhat values for all (including both group and individual) parameters
+rhats <- mcmc_rhat_data(rhat(fit_m3g)) # a tibble format
+stan_rhat(fit_m3g)
+#stan_rhat(fit_m1a)$data
+mcmc_rhat(rhat(fit_m3g))
+
+#1.3.energy diagnostic plot, E and deltaE should overlap each other.
+mcmc_nuts_energy(nuts_params(fit_m3g))
+
+
+###2. Sampling efficiency
+#2.1. for n_eff ratio, if it is less than 0.1, indicating high auto-correlation, model fitting fails
+#get the n_eff ratio values for all (including both group and individual) parameters
+neff_ratio <- mcmc_neff_data(neff_ratio(fit_m3g)) # a tibble format
+stan_ess(fit_m3g)
+mcmc_neff(neff_ratio(fit_m3g))
+
+#2.2. auto correlations, should decrease with lag (larger correlation with small lag, but smaller correlation with large lag)
+mcmc_acf(as.array(fit_m3g), pars = paste0(c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_beta11','mu_beta12','mu_tau','sigma[1]','sigma[2]','sigma[3]','sigma[4]','sigma[5]','sigma[6]','sigma[7]')),inc_warmup = F)
+
+#2.3. for total sample size, should be 4000.
+length(extract(fit_m3g, pars = 'lp__')[[1]])
+
+
+#3. for divergent transitions, n_treedepth, accept_stat (i.e., adapt_delta parameter), stepsize, and energy
+summary(do.call(rbind,args = get_sampler_params(fit_m3g,inc_warmup = F)),digits=2) # across all chains所有链
+lapply(get_sampler_params(fit_m3g,inc_warmup = F),summary,digits=2) # for each chain每条链分开
+
+check_hmc_diagnostics(fit_m3g) # explicit checking of above parameters,including warmup transitions
+
+#4. NUTS diagnose
+stan_diag(fit_m3g)
+
+#5. correlations of posterior samples of different parameters
+#color_scheme_set('darkgray')
+mcmc_pairs(
+as.array(fit_m3g),
+pars = paste0(c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_beta11','mu_beta12','mu_tau','sigma[1]','sigma[2]','sigma[3]','sigma[4]','sigma[5]','sigma[6]','sigma[7]')),
+np = nuts_params(fit_m3g
+                 ))
+
+```
+
+
+Step03:group_level parameters plotting
+
+```{r setup, include=FALSE}
+#rm(list=ls())
+require("knitr") 
+opts_chunk$set(tidy = FALSE, warning = FALSE, message = FALSE, cache = FALSE)
+
+#load libraries and functions
+suppressMessages(library('rstan')) # for model fiting, using the sampling function
+rstan_options(auto_write = TRUE) #which allows you to automatically save a bare version of a compiled Stan program to the hard disk so that it does not need to be recompiled (unless you change it): https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started
+suppressMessages(library('loo'))   # for calculating looic and waic
+suppressMessages(library("ggplot2")) # for plotting.
+suppressMessages(library("ggsci")) # for setting scientific jouranl color palettes 
+suppressMessages(library("gridExtra")) # for arranging the position of figures
+suppressMessages(library("ggpubr")) # using the ggexport
+
+source("./supp_funcs/HDIofMCMC.R") #compute the 95% HDI: change for each project
+source("./supp_funcs/plotHDI.R") #plot the distribution and the 95% HDI: no chnage needed
+```
+
+6.do the sig test and associated plotting for parameters
+
+```{r sig test}
+load('./stan_output/fit_Nm3g0.6_Sim.RData')
+parVals<- rstan::extract(fit_m3g, permuted = TRUE)#extract函数提取fit_m5g拟合出来的参数及其分布
+#fit_aud <- fit_m5g
+rm(fit_m3g)
+
+##########  simple effect OF "frame": alpha
+#alpha11 <- (parVals_m6f$mu_alpha11 - 0)
+diff_α<- parVals$mu_alpha11  - parVals$mu_alpha12
+HDIofMCMC(diff_α) #calculate the 95% HDI of the differences
+diff_α = sort(diff_α)#extract the posterior distribution
+#score_table <- sortedPts
+names(diff_α) <- c('in-out(α)')
+diff_α<-as.data.frame(diff_α)
+# HDI <- plotHDI(diff_α)
+# ggsave(HDI,filename = "./Pic/α_diff.jpg",dpi=300,width=1200,height=1200,units='px')
+
+diff_θ <-  parVals$mu_theta11 - parVals$mu_theta12
+HDIofMCMC(diff_θ) #calculate the 95% HDI of the differences
+diff_θ = sort(diff_θ)#extract the posterior distribution
+#score_table <- sortedPts
+names(diff_θ) <- c('in-out(θ)')
+diff_θ<-as.data.frame(diff_θ)
+
+
+diff_β<- parVals$mu_beta11 - parVals$mu_beta12
+HDIofMCMC(diff_β) #calculate the 95% HDI of the differences
+eta11 = sort(diff_β)#extract the posterior distribution
+#score_table <- sortedPts
+names(diff_β) <- c('in-out(β)')
+diff_β<-as.data.frame(diff_β)
+
+HDI_Nm3g<- cbind(diff_α,diff_θ,diff_β)
+
+write.csv(HDI_Nm3g,file='4HDI_Nm3gsimdata_sub.csv')#write the posterior distribution
+
+```
+
+7.draw pic
+```{r  95% highest density interval (HDI)}
+
+library(ggplot2)
+library(plyr)
+library(reshape)
+library(ggprism)
+library(ggridges)
+library(melt)
+
+data1 <- read.csv("4HDI_Nm3gsimdata_sub.csv") #read data
+data1<- subset(data1,select = -c(1)) 
+#变量格式转换,宽数据转化为长数据,方便后续作图
+df1 <- melt(data1)
+p1 <- ggplot(df1, aes(x = value, y = variable, fill  = factor(stat(quantile)))) +#数据
+  stat_density_ridges(geom = "density_ridges_gradient",
+                      calc_ecdf = TRUE,
+                      quantiles = c(0.025, 0.975))+
+  theme_prism(palette = "candy_bright",#主题样式
+              base_fontface = "plain", # 字体样式
+              base_family = "serif", # 字体格式
+              base_size = 16,  #字体大小
+              base_line_size = 0.8)+ #坐标轴粗细
+  scale_colour_manual(values=alpha(c("#ffffff", '#FF7F50', "#ffffff"),0.6), name='Power',)+
+  scale_fill_manual(name = "Probability", values =alpha(c("#ffffff", '#FF7F50', "#ffffff"),0.6), 
+                    labels =c("(0,0.025]", "(0.025, 0.975]", "(0.975, 1]"))+
+  theme(legend.position = "none",#图例去除
+        axis.line.y = element_blank(),#去除Y轴轴线
+        axis.ticks.y = element_blank())+#去除Y轴刻度
+  theme(axis.text.y=element_text(colour="black",family="serif",size=16), 
+axis.title.y=element_text(colour="black",family="serif",size=16))+
+  scale_y_discrete(expand = c(0.05, 0))#调整起始图形距离X轴距离
+ggsave("HDI_Nm3gsimdata.png",width=10, height=10,dpi=500)
+p1
+
+```
+
+Step04:extract individual parameters
+
+6.extract sim data individual parameters
+```{r individual paramters}
+#individual paramters
+load("./stan_output/fit_Nm3g0.6_Sim.RData")#从文件夹中加载RData数据【改】
+# Extract from the Stan fit object
+parVals <- rstan::extract(fit_m3g, permuted = TRUE)#将模型数据存入新文件【改】
+
+# Define measurement of individual parameters
+indPars <- "mean" #extracting mean of parameters（提取参数平均值）
+measure_indPars <- switch(indPars, mean = mean, median = median, mode = estimate_mode)#
+which_indPars <- c('alpha11','alpha12','theta11','theta12','beta11','beta12','tau') #vector 所有的参数名称
+#n_subj<-57 
+#subjs<-57
+multp_which_indPars <- NULL  # matrix
+
+# Measure all individual parameters (per subject)
+allIndPars <- as.data.frame(array(NA, c(n_subj, length(which_indPars))))
+#用array函数创建数组，array( data = NA, dim = length(data), dimnames = NULL)；行数为被试个数n_subj，列数为参数个数which_indPars
+m_allIndPars <- as.data.frame(array(NA, c(n_subj, 50))) #'50' here is an arbitrary value, just to make sure that the number of parameters are below this value.
+m_names  <- rep(NULL,50) #null重复50次
+
+for (i in 1:n_subj) {
+  
+  allIndPars[i, ] <- mapply(function(x) measure_indPars(parVals[[x]][, i]), which_indPars)
+  
+  if (length(multp_which_indPars)>0){  #for parameters in the matrix form
+    count <-0
+    for (nm in 1:length(multp_which_indPars)){
+      for (ds in 1:dim(parVals[[multp_which_indPars[nm]]])[3]){
+        count <- count + 1
+        m_allIndPars[i, count] <- sapply(list(parVals[[multp_which_indPars[nm]]][, i,ds]),function(x) measure_indPars(x))
+        m_names[count] <- paste0(multp_which_indPars[nm],ds)
+      }
+    }
+  }
+}
+
+if (length(multp_which_indPars)>0){
+  m_allIndPars <- m_allIndPars[,1:count]
+  m_allIndPars <- as.data.frame(m_allIndPars)
+  m_names      <- m_names[1:count]
+  
+  allIndPars <- cbind(subjs, allIndPars,m_allIndPars)
+  colnames(allIndPars) <- c("subjid", which_indPars,m_names)
+} else {
+  allIndPars <- cbind(subjs, allIndPars)
+  colnames(allIndPars) <- c("subjid", which_indPars) 
+}
+
+
+write.csv(allIndPars,file='4IndPars_fit_Nm3g0.6_simdata.csv',row.names = FALSE)#【改】
+
+c('alpha11','alpha12','theta11','theta12','beta11','beta12','tau')
+
+
+alpha11     <- parVals$alpha11               # a 6000*30matrix 用mcmc做了6000次采样，每个个体有6000个参数，很多没有用，但还是全部提取出来，这里的30是30个被试的意思
+alpha12     <- parVals$alpha12               # a 6000*30 matrix
+theta11     <- parVals$theta11
+theta12     <- parVals$theta12
+beta11      <- parVals$beta11                # a 6000*30matrix
+beta12   <- parVals$beta12                # a 6000*30 matrix
+tau         <- parVals$tau                   # a 6000*30 matrix
+
+library(R.matlab)
+writeMat('4IndPars_simdata_fit_Nm3g0.6_simdata_para.mat',alpha11 = alpha11,alpha12 = alpha12,theta11 = theta11,theta12 = theta12,beta11 = beta11,beta12 = beta12,tau = tau)#【改】
+
+```
+8. paired t test
+```{r pair t test}
+data <- read.csv("4IndPars_fit_Nm3g0.6_simdata.csv")
+alpha11 <- data$alpha11
+alpha12<- data$alpha12
+result <- t.test(alpha11, alpha12, paired = TRUE)
+result$p.value
+result$statistic
+result$conf.int
+
+beta11 <- data$beta11
+beta12<- data$beta12
+result <- t.test(beta11, beta12, paired = TRUE)
+result$p.value
+result$statistic
+result$conf.int
+
+theta11 <- data$theta11
+theta12<- data$theta12
+result <- t.test(theta11, theta12, paired = TRUE)
+result$p.value
+result$statistic
+result$conf.int
+```
+
+
+

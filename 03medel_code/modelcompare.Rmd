@@ -1,0 +1,228 @@
+---
+title: "model_compare"
+author: "lzt"
+date: "2025-06-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Package}
+#rm(list=ls())
+require("knitr") 
+opts_chunk$set(tidy = FALSE, warning = FALSE, message = FALSE, cache = FALSE)
+suppressMessages(library("openintro"))
+suppressMessages(library("tidyverse"))
+suppressMessages(library("ggplot2")) # for plotting.
+suppressMessages(library("ggpubr")) # using the ggexport
+suppressMessages(library('loo'))   # for calculating looic and waic
+source("./supp_funcs/func05_printfit.R") #print looic and waic of the model and their weights:   no change needed
+source("./supp_funcs/func04_extract_ic.R") #extract looic and waic of the model:                 no chnage needed
+# install.packages("ggplot2")    # 安装 ggplot2 包
+# install.packages("gridExtra")  # 安装 gridExtra 包
+# install.packages("grid")      # 安装 grid 包
+# install.packages("extrafont")
+library(extrafont)
+# font_import()   # 可能需要几分钟
+# loadfonts(device = "win")
+library(gridExtra)
+```
+
+0. local functions
+```{r local functions}
+#for plotting LOOIC/WAIC scores
+mcplot <- function(d,ylimits,ybreaks){
+  fig <- ggplot(data=d,aes(x=reorder(name,-score),y=score,fill=score,shape=domain)) + 
+    geom_point(position=position_dodge(0.5),size=3)+ #绘制均值为点图
+    scale_shape_manual(values = c(21,23))+
+    scale_y_continuous(limits = c(0,10000),breaks = seq(7000,10000,1000),expand = c(0, 0))+ 
+    scale_fill_continuous(low="#48C0AA",high="#456990",limits=c(7000,10000),breaks = c(7000,8000,9000,10000))+theme_classic()+
+    geom_bar(stat="identity",position=position_dodge(0.5),width=0.04) + coord_cartesian(ylim = c(7000,10000))  + #绘制条形图
+    theme_bw()+ #背景变为白色
+    theme(axis.text.x=element_text(angle=0,hjust = 0.5,colour="black",family="Times New Roman",size=16,face = "bold"), #设置x轴刻度标签的字体显示倾斜角度为15度，并向下调整1(hjust = 1)，字体簇为Times大小为20
+          axis.text.y=element_text(colour="black",family="Times New Roman",size=16,face = "bold"), #设置y轴刻度标签的字体簇，字体大小，字体样式为plain
+          axis.title.y=element_text(colour="black",family="Times New Roman",size=16,face = "bold"), #设置y轴标题的字体属性
+          panel.border = element_blank(),axis.line = element_line(colour = "black",size=1), #去除默认填充的灰色，并将x=0轴和y=0轴加粗显示(size=1)
+          legend.text=element_text(family="Times New Roman", colour="black",  #设置图例的子标题的字体属性
+                                   size=16,face = "bold"),
+          legend.title=element_text(family="Times New Roman", colour="black", #设置图例的总标题的字体属性
+                                    size=16,face = "bold"),
+          panel.grid.major = element_blank(),   #不显示网格线
+          panel.grid.minor = element_blank(),
+          plot.margin=unit(c(1,1,1,1),"cm"))+  #不显示网格线
+    ylab("")+
+    xlab("") #设置x轴和y轴的标题
+ 
+   return(fig)
+}
+
+#for plotting LOOIC/WAIC weights
+mcplot2 <- function(d,ylimits,ybreaks){
+  fig <- ggplot(data=d,aes(x=reorder(name,weights),y=weights,fill=weights,shape=domain)) +
+    geom_point(position=position_dodge(0.5),size=3)+ #绘制均值为点图
+    scale_shape_manual(values = c(21,23))+
+    scale_x_discrete(position = 'top') +
+    scale_y_continuous(limits = ylimits,breaks = ybreaks)+
+    scale_y_reverse(expand = c(0, 0))+
+    scale_fill_continuous(low="#48C0AA",high="#456990",limits=c(-0.05,1.05),breaks = c(0.0,0.25,0.5,0.75,1.0))+theme_classic()+
+    geom_bar(stat="identity",position=position_dodge(0.5),width=0.04) + #绘制条形图
+    theme_bw()+ #背景变为白色
+    theme(axis.text.x=element_text(angle=0,hjust = 0.5,colour="black",family="Times New Roman",size=16,face = "bold"), #设置x轴刻度标签的字体显示倾斜角度为15度，并向下调整1(hjust = 1)，字体簇为Times大小为20
+          axis.text.y=element_text(colour="black",family="Times New Roman",size=16,face = "bold"), #设置y轴刻度标签的字体簇，字体大小，字体样式为plain
+          axis.title.y=element_text(colour="black",family="Times New Roman",size=16,face = "bold"), #设置y轴标题的字体属性
+          panel.border = element_blank(),axis.line = element_line(colour = "black",size=1), #去除默认填充的灰色，并将x=0轴和y=0轴加粗显示(size=1)
+          legend.text=element_text(family="Times New Roman", colour="black",  #设置图例的子标题的字体属性
+                                   size=16,face = "bold"),
+          legend.title=element_text(family="Times New Roman", colour="black", #设置图例的总标题的字体属性
+                                    size=16,face = "bold"),
+          panel.grid.major = element_blank(),   #不显示网格线
+          panel.grid.minor = element_blank(),
+          plot.margin=unit(c(1,1,1,1),"cm"))+  #不显示网格线
+    ylab("")+
+    xlab("")+ #设置x轴和y轴的标题
+    coord_cartesian(clip = "off")
+    return(fig)
+}
+
+
+```
+
+0. load models to compute weights
+```{r load models to compute weights}
+load('./stan_output/fit_Nm1c0.5.RData')
+load('./stan_output/fit_Nm2g0.5.RData')
+load('./stan_output/fit_Nm3g0.6.RData')
+load('./stan_output/fit_Nm4g0.5.RData')
+
+score_table <- printFit(fit_m1c,fit_m2g,fit_m3g,fit_m4g,ic="both")
+names(score_table) <- c('LOOIC','WAIC','LOOIC_w','WAIC_w')
+score_table
+
+write.csv(score_table,file='7LOOIC_WAIC_weights.csv',row.names = F)
+
+```
+
+1. load the csv data.
+```{r}
+com <- read.csv("./8modelcompare/8modelcompare.csv") 
+com$name <- as.factor(com$name) 
+com$domain <- as.factor(com$domain)
+domain <- com$domain
+domain <- factor(domain)
+```
+
+2. plotting
+```{r}
+min(com$score)
+max(com$score)
+#for scores
+Fig <- mcplot(com,c(7000,10000),seq(from=7000,to=10000,by=1000))
+Fig
+ggexport(Fig,filename = "./8modelcompare/Figure1_model_comparisons_scores2.png",width=3000,height=2000,res = 300)
+
+Fig2 <- mcplot2(com,c(0,1),seq(from=0,to=1,by=0.2))
+Fig2
+ggexport(Fig2,filename = "./8modelcompare/Figure_model_comparisons_weights.png",width=3000,height=2000,res = 300)
+
+```
+
+####################method2
+```{r bar}
+
+# 确保数据列是数值型
+data <- data.frame(
+  Model = factor(c("Model 1", "Model 2", "Model 3", "Model 4"), 
+                 levels = rev(c("Model 1", "Model 2", "Model 3", "Model 4"))),
+  Value = as.numeric(c(9883.974, 7979.841, 7961.686, 8526.206)),
+  Weight = as.numeric(c(0, 0, 1, 0))  # 假设这是权重数据
+)
+
+# 检查数据
+print(data)
+
+# 找到最小值的数值
+min_value <- min(data$Value)
+
+# 绘制条形图
+red_gradient_plot <- ggplot(data, aes(x = Model, y = Value, fill = Value)) +
+geom_bar(stat = "identity", color = "black", width = 0.6) +
+  
+# 添加渐变线条
+geom_segment(aes(x = Model, xend = Model, y = 7000, yend = Weight * 3000 + 7000, color = Weight), 
+               linetype = "solid", size = 1.2) +
+# 添加渐变点
+geom_point(aes(x = Model, y = Weight * 3000 + 7000, color = Weight), size = 3.5) +
+# 设置渐变颜色
+scale_color_gradient(low = "#FEC44F", high = "#ff7f50", name = "Weight") +  
+    
+    
+    
+    
+  #绘制数值标签（最后绘制，避免被覆盖）  #E41A1c
+  #geom_text(aes(label = round(Value, 2)), hjust = -0.05, color = "black", size = 4.5,face = "bold", family = "Times New Roman") +  # 使用hjust控制文本向右偏移
+  geom_text(aes(label = round(Value, 2)), hjust = -0.05, color = "#495057", size = 4.5, fontface = "bold", family = "Times New Roman")+  # Use fontface for bold text
+    scale_fill_gradient(
+    low = "#FEC44F", 
+    high = "#ff7f50", 
+    limits = c(7000, 10000),  # 设置渐变标签范围
+    name = "Score"
+  ) +
+  scale_y_continuous(
+    limits = c(7000, 10000),
+    breaks = seq(7000, 10000, 1000),
+    oob = scales::squish,  # 超出范围的值映射到边界
+    expand = c(0, 0),  # 使 y 轴从 8000 开始，去掉默认的扩展空间
+    sec.axis = sec_axis(
+      trans = ~ (.-7000) / 3000,  # 将 Value 轴映射到 Weight 轴，8000 对应 0，11500 对应 1
+      name = "Weight",
+      breaks = seq(0, 1, 0.1)  # Weight 轴刻度间隔为 0.1
+    )
+  ) +
+  theme_minimal(base_size = 14, base_family = "Times New Roman") +  # 设置字体为新罗马
+  theme(
+    axis.title.y = element_text(size = 16, face = "bold"),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.text.y = element_text(size = 12, face = "bold", hjust = 1),
+    axis.text.x = element_text(size = 12, angle = 0, hjust = 0.5, face = "bold"),
+    panel.grid.major = element_blank(),  # 删除主网格线
+    panel.grid.minor = element_blank(),  # 删除次网格线
+    axis.line.x = element_line(color = "black", size = 0.8),  # 保留横轴的线
+    axis.line.y = element_line(color = "black", size = 0.8),  # 保留纵轴的线
+    axis.ticks = element_line(color = "black"),  # 显示坐标轴刻度
+    legend.position = "right",  # 图例放置右侧
+    #设置图例标题和文本
+    legend.title = element_text(size = 10,face = "bold"),
+    legend.text = element_text(size = 10)
+  ) +
+  labs(x = "Model", y = "LOOIC", title = "Model comparison") +
+  theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5))+
+  #theme(plot.title = element_text(hjust = 0.5)) +  # 将标题居中
+  coord_flip(ylim = c(7000, 10000), clip = "off")   # 翻转坐标轴，Value 起点从 8000 开始
+  # geom_hline(
+  #   aes(yintercept = min_value),  # 设置水平线的 y 值对应最小的 Value
+  #   color = "#495057",  # 设置线的颜色为黄色
+  #   linetype = "dashed",  # 设置虚线
+  #   size = 0.8  # 设置线宽
+  # ) 
+  # 
+
+# 显示图形
+print(red_gradient_plot)
+
+# 保存为 PNG 文件
+png("model_comparison.png", width = 9, height = 6, units = "in", res = 300)
+print(red_gradient_plot)
+dev.off()
+
+
+```
+
+
+
+
+
+
+
+

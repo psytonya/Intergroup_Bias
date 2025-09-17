@@ -1,0 +1,176 @@
+---
+title: "model2025g"
+author: "lzt"
+date: "2025-03-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#rm(list=ls())
+require('knitr') 
+opts_chunk$set(tidy = FALSE, warning = FALSE, message = FALSE, cache = FALSE)
+
+#load libraries and functions
+suppressMessages(library('tidyverse')) # to organize data
+suppressMessages(library('rstan')) # for model fiting, using the sampling function
+rstan_options(auto_write = TRUE) #which allows you to automatically save a bare version of a compiled Stan program to the hard disk so that it does not need to be recompiled (unless you change it): https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started
+suppressMessages(library('loo'))   # for calculating looic and waic
+suppressMessages(library('data.table')) # to read data as data.table rather than data.frame.
+suppressMessages(library('bayesplot')) # to plot various figures for model checking
+suppressMessages(library('R.matlab')) # to save out .mat files
+suppressMessages(library('hypr')) # transfer hypothesis matrix to contrast matrix.
+
+
+#The following functions are adapted from the hBayesDM package (Ahn et al., 2017).
+source('./supp_funcs/func01_prepro.R') #preparing the data for the stan:
+###change for each project:IMPORTANT!!!!!!!!!!!!!!!!!####
+source('./supp_funcs/func04_extract_ic.R') #extract looic and waic of the model:                 no change needed
+source('./supp_funcs/func05_printfit.R') #print looic and waic of the model and their weights:   no change needed
+source('./supp_funcs/estimate_mode.R') #estimate the mode (众数) of the posterior distribution:  no change needed
+
+options(max.print = 99999) # for ploting all results of fitted model
+```
+
+1. load the csv data.
+```{r}
+raw_data                     <- fread(file='alldata_57sub_female_male_inoutgroup.csv') #load as data.table: https://digitaschools.com/read-csv-in-r-importing-data/
+raw_data                     <- subset(raw_data,select = -c(12)) #delete a column,diff from delete a col from data.frame
+data_df                      <- raw_data
+```
+
+2. data describing.
+```{r}
+# 1. Target variable: (1) choice: 1,2,3,4, corresponding to 0,2,4,6
+# 2. Predictor variable:  (1) offer_propoer (money to the proposer); (2)offer_recipt(money to participants/agents).
+# 3. supporting variables: subid (n=30), trial(1:160),targets(1=inter;2=noninter),party(1=SPP;2=TPP)
+```
+
+3. data cleaning
+```{r}
+#1. only left the necessary variables
+data_df <- data_df[,c('subid','trial','choice','offer_propoer','offer_recipt','in_outgroup')]#把需要用到的列拿出来
+
+#2. convert trial, ignoring run number
+data_df <- data_df %>%
+  group_by(subid) %>%
+  mutate(trial = 1:n()) %>% ungroup() # this is the real number of trials for each subject.
+
+data_df <- as.data.table(data_df)
+class(data_df)#check the data type
+
+
+```
+
+4. preparing data for stan
+```{r data loading}
+
+colnames_data_df <- colnames(data_df)#提取列名
+
+subjs    <- NULL   # List of unique subjects(1D) #NULL 代表连位置都没有，变量为空
+n_subj   <- NULL   # Total number of subjects (0D)
+t_subjs  <- NULL   # Number of trials per subject (2D or 1D)
+t_max    <- NULL   # Maximum number of trials across all subjects (0D)
+
+.N       <- NULL
+
+DT_trials <- data_df[, .N, by = c('subid')] #get the number of trials for each sub, data.table#返回每个被试有效总的trial数？
+
+subjs     <- DT_trials$subid    # sub IDs
+n_subj    <- length(subjs)      # no. of subs
+t_subjs   <- DT_trials$N # number of trials for each sub
+t_max     <- max(t_subjs) # maximal no. of trials across all subs.
+
+gen_file <- 1 #whether or not generate a data file, only generating for main analysis, not for simulation analysis
+
+general_info        <- list(subjs, n_subj, t_subjs, t_max, gen_file)#。创建list
+names(general_info) <- c('subjs', 'n_subj', 't_subjs', 't_max','gen_file')
+
+data_list <- prepro_func(data_df,general_info)  # get the data ready for stan; MUST check the 'func01_prepro.R' file in the 'supp_funcs' directory!!!!!!!这里的data_list是stan文件的一个输入，可以检查一下trial数目和编码方式和设定的是否一致，看有没有正确的清洗好数据；prepro_func是用来生成data_list的一个函数，需要修改，去函数部分进行修改
+##############################以上是数据整理部分
+```
+
+3.7 set up model Nm1c
+```{r set up model Nm3g}
+ncore <- 3
+options(mc.cores = ncore) #adapted from hBayesDM_model.R
+rstan_options(javascript=FALSE)
+#model m4, 3 parameters: alpha,beta,tau
+pars_m1c <- c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_tau','sigma','alpha11','alpha12','theta11','theta12','tau','log_lik')
+fit_m1c <- stan(file=paste0(getwd(),'/stan_model/Nm1c0.5.stan'), data=data_list,
+pars = pars_m1c,
+chains = 3,
+iter = 12000,
+warmup = 6000,
+thin = 1,
+control = list(adapt_delta = 0.99,
+stepsize = 1,
+max_treedepth = 18))
+#################################################################model fit & save model & plots#############################################################
+
+save(fit_m1c,file ='./stan_output/fit_Nm1c0.5.RData')#非常重要！！！一定要在本地路径建相应文件夹stan_output
+printFit(fit_m1c,ic='both')
+print(fit_m1c, pars = c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_tau','sigma')) #all are group-level parameters
+
+#plot group parameters
+stan_dens(fit_m1c, pars = paste0(c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_tau','sigma')), separate_chains = T) #should overlap to each other
+#plot individual parameters
+stan_plot(fit_m1c, pars = 'alpha11', ci_level = 0.95, outer_level = 1, show_density = T, point_est = 'mean')
+stan_plot(fit_m1c, pars = 'alpha12', ci_level = 0.95, outer_level = 1, show_density = T, point_est = 'mean')
+stan_plot(fit_m1c, pars = 'theta11', ci_level = 0.95, outer_level = 1, show_density = T, point_est = 'mean')
+stan_plot(fit_m1c, pars = 'theta12', ci_level = 0.95, outer_level = 1, show_density = T, point_est = 'mean')
+stan_plot(fit_m1c, pars = 'tau', ci_level = 0.95, outer_level = 1, show_density = T, point_est = 'mean')
+
+#################################################################model diagnostics#########################################################################
+#various plotting with bayesplot: see also https://dastatis.github.io/pdf/StanAdvent2018/bayesplot.html
+#see also: 'RStan: the R interface to Stan'
+#see also: https://betanalpha.github.io/assets/case_studies/rstan_workflow.html
+###1. Convergence and divergence
+#1.1. overlaps between different chains
+traceplot(fit_m1c, pars = c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_tau','sigma')) #all are group-level parameters # should be stationary and overylap to each other
+mcmc_rank_hist(fit_m1c, pars = paste0(c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_tau','sigma[1]','sigma[2]','sigma[3]','sigma[4]','sigma[5]')), ref_line = TRUE) # should be uniformly distributed ##A traditional traceplot (mcmc_trace()) visualizes how sampled values the MCMC chains mix over the course of sampling. A rank histogram (mcmc_rank_hist()) visualizes how the ranks of values from the chains mix together. An ideal plot would show the ranks mixing or overlapping in a uniform distribution##
+
+
+#1.2. Rhat, must be below 1.01 to make sure that parameter estimates could be trusted (Baribault & Collins, 2022)Rhat小于1.01
+#get the rhat values for all (including both group and individual) parameters
+rhats <- mcmc_rhat_data(rhat(fit_m1c)) # a tibble format
+stan_rhat(fit_m1c)
+#stan_rhat(fit_m1a)$data
+mcmc_rhat(rhat(fit_m1c))
+
+#1.3.energy diagnostic plot, E and deltaE should overlap each other.
+mcmc_nuts_energy(nuts_params(fit_m1c))
+
+
+###2. Sampling efficiency
+#2.1. for n_eff ratio, if it is less than 0.1, indicating high auto-correlation, model fitting fails
+#get the n_eff ratio values for all (including both group and individual) parameters
+neff_ratio <- mcmc_neff_data(neff_ratio(fit_m1c)) # a tibble format
+stan_ess(fit_m1c)
+mcmc_neff(neff_ratio(fit_m1c))
+
+#2.2. auto correlations, should decrease with lag (larger correlation with small lag, but smaller correlation with large lag)
+mcmc_acf(as.array(fit_m1c), pars = paste0(c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_tau','sigma[1]','sigma[2]','sigma[3]','sigma[4]','sigma[5]')),inc_warmup = F)
+
+#2.3. for total sample size, should be 4000.
+length(extract(fit_m1c, pars = 'lp__')[[1]])
+
+
+#3. for divergent transitions, n_treedepth, accept_stat (i.e., adapt_delta parameter), stepsize, and energy
+summary(do.call(rbind,args = get_sampler_params(fit_m1c,inc_warmup = F)),digits=2) # across all chains所有链
+lapply(get_sampler_params(fit_m1c,inc_warmup = F),summary,digits=2) # for each chain每条链分开
+
+check_hmc_diagnostics(fit_m1c) # explicit checking of above parameters,including warmup transitions
+
+#4. NUTS diagnose
+stan_diag(fit_m1c)
+
+#5. correlations of posterior samples of different parameters
+#color_scheme_set('darkgray')
+mcmc_pairs(
+as.array(fit_m1c),
+pars = paste0(c('mu_alpha11','mu_alpha12','mu_theta11','mu_theta12','mu_tau','sigma[1]','sigma[2]','sigma[3]','sigma[4]','sigma[5]')),
+np = nuts_params(fit_m1c
+                 ))
+
+```
+
